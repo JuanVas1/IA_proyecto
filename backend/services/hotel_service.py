@@ -27,6 +27,9 @@ class HotelService:
         for source, target in aliases.items():
             if source in self.df.columns and target not in self.df.columns:
                 self.df[target] = self.df[source]
+            # Drop the original column so it doesn't stay with raw NaN floats
+            if source in self.df.columns:
+                self.df = self.df.drop(columns=[source])
 
         if "nombre_comercial" not in self.df.columns:
             self.df["nombre_comercial"] = self.df.get("razon_social", "")
@@ -112,6 +115,22 @@ class HotelService:
                 location_tree[dep_name][prov_name] = sorted(location_tree[dep_name][prov_name])
 
         self.location_tree = location_tree
+
+    @staticmethod
+    def _to_records(df: pd.DataFrame) -> list[dict]:
+        """Convert a DataFrame to a list of dicts, replacing NaN/Inf floats with None."""
+        import math
+        records = df.where(pd.notna(df), None).to_dict(orient="records")
+        cleaned = []
+        for rec in records:
+            clean_rec = {}
+            for k, v in rec.items():
+                if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+                    clean_rec[k] = None
+                else:
+                    clean_rec[k] = v
+            cleaned.append(clean_rec)
+        return cleaned
 
     def _setup_bayes_model(self) -> None:
         self._bayes_features = ["departamento", "provincia", "distrito", "clase"]
@@ -212,7 +231,7 @@ class HotelService:
         end = start + page_size
 
         page_df = filtered.iloc[start:end].copy()
-        records = page_df.where(pd.notna(page_df), None).to_dict(orient="records")
+        records = self._to_records(page_df)
 
         global_scored = self._add_bayes_scores(self.df.copy())
         destacados_base = global_scored[global_scored["prob_alta_calidad_bayes"] >= 50].copy()
@@ -227,7 +246,7 @@ class HotelService:
             .head(8)
             .copy()
         )
-        destacados_records = destacados.where(pd.notna(destacados), None).to_dict(orient="records")
+        destacados_records = self._to_records(destacados)
 
         available_provincias = sorted(
             [v for v in filtered["provincia"].dropna().astype(str).str.strip().unique().tolist() if v]
@@ -319,7 +338,7 @@ class HotelService:
 
         similar_df = pd.DataFrame(similar_rows).head(int(k))
         similar_df = self._add_bayes_scores(similar_df)
-        return similar_df.where(pd.notna(similar_df), None).to_dict(orient="records")
+        return self._to_records(similar_df)
 
     def get_bayes_profile(self, departamento: str, clase: str) -> dict:
         sample = pd.DataFrame(

@@ -196,3 +196,4 @@ async def get_ubicaciones():
         return dashboard_service.get_location_catalog()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+

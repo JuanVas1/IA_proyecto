@@ -111,17 +111,19 @@ class DashboardService:
         location_tree: dict[str, dict[str, list[str]]] = {}
 
         for dep_key in sorted_dep_keys:
-            dep_name = department_names.get(dep_key, dep_key)
-            location_tree[dep_name] = {}
+            # Use the normalized key (no tildes) so the frontend can match it
+            # using normalizeDepartmentKey() regardless of what department name was selected.
+            location_tree[dep_key] = {}
             for prov_key in sorted(location_tree_by_key[dep_key].keys()):
-                prov_name = province_names.get((dep_key, prov_key), prov_key)
                 district_values = [
                     district_names.get((dep_key, prov_key, dist_key), dist_key)
                     for dist_key in sorted(location_tree_by_key[dep_key][prov_key])
                 ]
-                location_tree[dep_name][prov_name] = district_values
+                # Keep province name with tildes for display but use normalized key.
+                prov_name = province_names.get((dep_key, prov_key), prov_key)
+                location_tree[dep_key][prov_name] = district_values
 
-        departamentos = sorted(location_tree.keys(), key=self._normalize_text)
+        departamentos = [department_names.get(k, k) for k in sorted(location_tree.keys(), key=self._normalize_text)]
         return {
             "departamentos": departamentos,
             "location_tree": location_tree,

@@ -83,6 +83,12 @@ class HotelService:
         # Keep IDs stable and unique after deduplication.
         self.df["id"] = range(1, len(self.df) + 1)
 
+        # Remove rows with invalid clase values (e.g., URLs that ended up in wrong column).
+        VALID_CLASSES = {"Hotel", "Hostal", "Apart Hotel", "Albergue"}
+        self.df = self.df[self.df["clase"].isin(VALID_CLASSES)].reset_index(drop=True)
+        # Re-assign IDs after filtering.
+        self.df["id"] = range(1, len(self.df) + 1)
+
         # Proxy target used for tourist confidence ranking when explicit quality labels are absent.
         self.df["alta_calidad_proxy"] = (self.df["estrellas"].fillna(0) >= 4).astype(int)
 
@@ -92,27 +98,34 @@ class HotelService:
         self.catalog_departamentos = sorted(
             [v for v in self.df["departamento"].dropna().astype(str).str.strip().unique().tolist() if v]
         )
-        self.catalog_clases = sorted(
-            [v for v in self.df["clase"].dropna().astype(str).str.strip().unique().tolist() if v]
-        )
+        self.catalog_clases = ["Hotel", "Hostal", "Apart Hotel", "Albergue"]
         self.catalog_estrellas = sorted(
             [int(v) for v in self.df["estrellas"].dropna().astype(int).unique().tolist()]
         )
 
+        # Build location tree with UPPERCASE normalized department keys so the frontend
+        # can look up provinces even when the department name has special characters (tildes).
+        import unicodedata
+        def _norm_key(s: str) -> str:
+            return unicodedata.normalize("NFD", s.upper()).encode("ascii", "ignore").decode("ascii")
+
         location_tree: dict[str, dict[str, list[str]]] = {}
+        dep_key_to_display: dict[str, str] = {}
         for _, row in self.df.iterrows():
             dep = str(row.get("departamento") or "").strip()
             prov = str(row.get("provincia") or "").strip()
             dist = str(row.get("distrito") or "").strip()
             if not dep or not prov or not dist:
                 continue
-            location_tree.setdefault(dep, {}).setdefault(prov, [])
-            if dist not in location_tree[dep][prov]:
-                location_tree[dep][prov].append(dist)
+            dep_key = _norm_key(dep)
+            dep_key_to_display.setdefault(dep_key, dep)
+            location_tree.setdefault(dep_key, {}).setdefault(prov, [])
+            if dist not in location_tree[dep_key][prov]:
+                location_tree[dep_key][prov].append(dist)
 
-        for dep_name in location_tree:
-            for prov_name in location_tree[dep_name]:
-                location_tree[dep_name][prov_name] = sorted(location_tree[dep_name][prov_name])
+        for dep_key in location_tree:
+            for prov_name in location_tree[dep_key]:
+                location_tree[dep_key][prov_name] = sorted(location_tree[dep_key][prov_name])
 
         self.location_tree = location_tree
 

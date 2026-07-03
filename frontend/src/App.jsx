@@ -565,14 +565,16 @@ function App() {
     if (!investorForm.departamento) {
       return [];
     }
-    return Object.keys(locationCatalog.location_tree?.[investorForm.departamento] || {});
+    const depKey = normalizeDepartmentKey(investorForm.departamento);
+    return Object.keys(locationCatalog.location_tree?.[depKey] || {});
   }, [locationCatalog.location_tree, investorForm.departamento]);
 
   const districtOptions = useMemo(() => {
     if (!investorForm.departamento || !investorForm.provincia) {
       return [];
     }
-    return locationCatalog.location_tree?.[investorForm.departamento]?.[investorForm.provincia] || [];
+    const depKey = normalizeDepartmentKey(investorForm.departamento);
+    return locationCatalog.location_tree?.[depKey]?.[investorForm.provincia] || [];
   }, [locationCatalog.location_tree, investorForm.departamento, investorForm.provincia]);
 
   const peruDepartmentOptions = useMemo(() => {
@@ -1045,33 +1047,55 @@ function App() {
 
           <label>
             Provincia
-            <select
-              name="provincia"
-              value={investorForm.provincia}
-              onChange={onInvestorChange}
-              disabled={!investorForm.departamento || provinceOptions.length === 0}
-            >
-              <option value="">Selecciona una provincia</option>
-              {provinceOptions.map((prov) => (
-                <option key={prov} value={prov}>{cleanLabel(prov)}</option>
-              ))}
-            </select>
+            {provinceOptions.length > 0 ? (
+              <select
+                name="provincia"
+                value={investorForm.provincia}
+                onChange={onInvestorChange}
+                disabled={!investorForm.departamento}
+              >
+                <option value="">Selecciona una provincia</option>
+                {provinceOptions.map((prov) => (
+                  <option key={prov} value={prov}>{cleanLabel(prov)}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                name="provincia"
+                value={investorForm.provincia}
+                onChange={onInvestorChange}
+                placeholder="Escribe la provincia"
+                disabled={!investorForm.departamento}
+              />
+            )}
             {fieldErrors.provincia && <span className="field-error">{fieldErrors.provincia}</span>}
           </label>
 
           <label>
             Distrito
-            <select
-              name="distrito"
-              value={investorForm.distrito}
-              onChange={onInvestorChange}
-              disabled={!investorForm.provincia || districtOptions.length === 0}
-            >
-              <option value="">Selecciona un distrito</option>
-              {districtOptions.map((dist) => (
-                <option key={dist} value={dist}>{cleanLabel(dist)}</option>
-              ))}
-            </select>
+            {districtOptions.length > 0 ? (
+              <select
+                name="distrito"
+                value={investorForm.distrito}
+                onChange={onInvestorChange}
+                disabled={!investorForm.provincia}
+              >
+                <option value="">Selecciona un distrito</option>
+                {districtOptions.map((dist) => (
+                  <option key={dist} value={dist}>{cleanLabel(dist)}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                name="distrito"
+                value={investorForm.distrito}
+                onChange={onInvestorChange}
+                placeholder="Escribe el distrito"
+                disabled={!investorForm.provincia}
+              />
+            )}
             {fieldErrors.distrito && <span className="field-error">{fieldErrors.distrito}</span>}
           </label>
 
@@ -1079,7 +1103,7 @@ function App() {
             Clase
             <select name="clase" value={investorForm.clase} onChange={onInvestorChange}>
               <option value="">Selecciona una clase</option>
-              {(catalog.clases || []).map((clase) => (
+              {["Hotel", "Albergue", "Hostal", "Apart Hotel"].map((clase) => (
                 <option key={clase} value={clase}>{clase}</option>
               ))}
             </select>

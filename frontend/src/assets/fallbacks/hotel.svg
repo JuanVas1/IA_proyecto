@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" role="img" aria-label="Habitacion moderna de hotel">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f2744"/>
+      <stop offset="100%" stop-color="#3a7bc1"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="700" fill="url(#bg)"/>
+  <rect x="140" y="350" width="920" height="180" rx="18" fill="#f5f7fb"/>
+  <rect x="180" y="300" width="160" height="70" rx="14" fill="#d8e3f2"/>
+  <rect x="360" y="300" width="160" height="70" rx="14" fill="#d8e3f2"/>
+  <rect x="540" y="300" width="160" height="70" rx="14" fill="#d8e3f2"/>
+  <rect x="890" y="210" width="130" height="210" rx="12" fill="#224f86"/>
+  <rect x="910" y="230" width="90" height="120" rx="8" fill="#7cc3ff"/>
+  <text x="70" y="90" font-size="58" font-family="Arial, Helvetica, sans-serif" fill="#ffffff" font-weight="700">HOTEL</text>
+  <text x="70" y="140" font-size="32" font-family="Arial, Helvetica, sans-serif" fill="#d9e8fb">Habitacion moderna</text>
+</svg>

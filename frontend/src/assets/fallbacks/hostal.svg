@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" role="img" aria-label="Hospedaje economico hostal">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3f2a18"/>
+      <stop offset="100%" stop-color="#cf8c47"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="700" fill="url(#bg)"/>
+  <rect x="120" y="250" width="960" height="290" rx="20" fill="#f7efe5"/>
+  <rect x="170" y="290" width="390" height="210" rx="12" fill="#ffffff"/>
+  <rect x="600" y="290" width="430" height="210" rx="12" fill="#ffffff"/>
+  <rect x="210" y="330" width="140" height="40" rx="10" fill="#d6e2f0"/>
+  <rect x="370" y="330" width="140" height="40" rx="10" fill="#d6e2f0"/>
+  <rect x="650" y="330" width="140" height="40" rx="10" fill="#d6e2f0"/>
+  <rect x="810" y="330" width="140" height="40" rx="10" fill="#d6e2f0"/>
+  <text x="70" y="90" font-size="58" font-family="Arial, Helvetica, sans-serif" fill="#fff8ef" font-weight="700">HOSTAL</text>
+  <text x="70" y="140" font-size="32" font-family="Arial, Helvetica, sans-serif" fill="#ffe3c7">Hospedaje economico</text>
+</svg>

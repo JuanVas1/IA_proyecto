@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" role="img" aria-label="Resort con piscina">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5ec6ff"/>
+      <stop offset="100%" stop-color="#c7f0ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="700" fill="url(#sky)"/>
+  <rect x="0" y="500" width="1200" height="200" fill="#f1dfb2"/>
+  <ellipse cx="620" cy="470" rx="430" ry="130" fill="#0096d6"/>
+  <ellipse cx="620" cy="470" rx="360" ry="90" fill="#55c6f2"/>
+  <rect x="110" y="290" width="250" height="170" rx="10" fill="#ffffff"/>
+  <rect x="840" y="280" width="250" height="180" rx="10" fill="#ffffff"/>
+  <circle cx="920" cy="210" r="64" fill="#ffd55f"/>
+  <text x="70" y="90" font-size="58" font-family="Arial, Helvetica, sans-serif" fill="#084a72" font-weight="700">RESORT</text>
+  <text x="70" y="140" font-size="32" font-family="Arial, Helvetica, sans-serif" fill="#1b6694">Piscina y descanso</text>
+</svg>

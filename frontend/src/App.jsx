@@ -1,18 +1,194 @@
 import { useEffect, useMemo, useState } from "react";
-import { getDashboard, getHistory, getHotels, predictHotel, recommendTourist } from "./services/api";
-import hotelPhoto from "./assets/hero.png";
+import { getDashboard, getHistory, getHotels, getSimilarHotels, predictHotel, recommendTourist } from "./services/api";
+import fallbackHotel from "./assets/fallbacks/hotel.svg";
+import fallbackHostal from "./assets/fallbacks/hostal.svg";
+import fallbackResort from "./assets/fallbacks/resort.svg";
+import fallbackApartHotel from "./assets/fallbacks/apart-hotel.svg";
+import fallbackAlbergue from "./assets/fallbacks/albergue.svg";
+import peruDepartmentsGeo from "./assets/peru-departamentos.json";
 import "./App.css";
 
 const menuItems = [
   { id: "inicio", label: "Inicio" },
   { id: "dashboard", label: "Dashboard" },
-  { id: "turista", label: "Turista" },
   { id: "inversionista", label: "Inversionista" },
   { id: "historial", label: "Historial" },
-  { id: "mapa", label: "Mapa de Hoteles" },
-  { id: "acerca", label: "Acerca del proyecto" },
+];
+
+const SYSTEM_MODULES = [
+  {
+    id: "dashboard",
+    title: "Dashboard",
+    description: "KPIs, gráficos y mapa analítico por departamento para monitoreo nacional.",
+  },
+  {
+    id: "turista",
+    title: "Módulo Turista",
+    description: "Explora hospedajes por departamento y recibe sugerencias con apoyo de IA.",
+  },
+  {
+    id: "inversionista",
+    title: "Módulo Inversionista",
+    description: "Evalúa viabilidad y calidad estimada de nuevos proyectos de hospedaje.",
+  },
+  {
+    id: "historial",
+    title: "Historial",
+    description: "Consulta predicciones recientes para auditoría y seguimiento de decisiones.",
+  },
+  {
+    id: "mapa",
+    title: "Mapa de Hoteles",
+    description: "Visualiza concentración geográfica y distribución territorial de hospedajes.",
+  },
 ];
 const HOTELS_PAGE_SIZE = 25;
+const MAP_WIDTH = 460;
+const MAP_HEIGHT = 620;
+
+const MAP_LEVEL_COLORS = {
+  "MUY ALTO": "#0f3b83",
+  ALTO: "#1f63c9",
+  MEDIO: "#4f94ea",
+  BAJO: "#95c9ff",
+  "MUY BAJO": "#dfe6ef",
+};
+
+const FALLBACK_BY_CLASS = {
+  HOTEL: fallbackHotel,
+  HOSTAL: fallbackHostal,
+  RESORT: fallbackResort,
+  "APART HOTEL": fallbackApartHotel,
+  ALBERGUE: fallbackAlbergue,
+};
+
+const REMOTE_IMAGES_BY_CLASS = {
+  HOTEL: [
+    "https://images.pexels.com/photos/271624/pexels-photo-271624.jpeg?auto=compress&cs=tinysrgb&w=1200",
+    "https://images.pexels.com/photos/164595/pexels-photo-164595.jpeg?auto=compress&cs=tinysrgb&w=1200",
+    "https://images.pexels.com/photos/803975/pexels-photo-803975.jpeg?auto=compress&cs=tinysrgb&w=1200",
+  ],
+  HOSTAL: [
+    "https://images.pexels.com/photos/271643/pexels-photo-271643.jpeg?auto=compress&cs=tinysrgb&w=1200",
+    "https://images.pexels.com/photos/775219/pexels-photo-775219.jpeg?auto=compress&cs=tinysrgb&w=1200",
+    "https://images.pexels.com/photos/6585750/pexels-photo-6585750.jpeg?auto=compress&cs=tinysrgb&w=1200",
+  ],
+  RESORT: [
+    "https://images.pexels.com/photos/338504/pexels-photo-338504.jpeg?auto=compress&cs=tinysrgb&w=1200",
+    "https://images.pexels.com/photos/803975/pexels-photo-803975.jpeg?auto=compress&cs=tinysrgb&w=1200",
+    "https://images.pexels.com/photos/271624/pexels-photo-271624.jpeg?auto=compress&cs=tinysrgb&w=1200",
+  ],
+  "APART HOTEL": [
+    "https://images.pexels.com/photos/271643/pexels-photo-271643.jpeg?auto=compress&cs=tinysrgb&w=1200",
+    "https://images.pexels.com/photos/271624/pexels-photo-271624.jpeg?auto=compress&cs=tinysrgb&w=1200",
+    "https://images.pexels.com/photos/164595/pexels-photo-164595.jpeg?auto=compress&cs=tinysrgb&w=1200",
+  ],
+  ALBERGUE: [
+    "https://images.pexels.com/photos/6585750/pexels-photo-6585750.jpeg?auto=compress&cs=tinysrgb&w=1200",
+    "https://images.pexels.com/photos/775219/pexels-photo-775219.jpeg?auto=compress&cs=tinysrgb&w=1200",
+    "https://images.pexels.com/photos/338504/pexels-photo-338504.jpeg?auto=compress&cs=tinysrgb&w=1200",
+  ],
+};
+
+function normalizeDepartmentKey(value = "") {
+  return String(value || "")
+    .trim()
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/Ñ/g, "N");
+}
+
+function getFeatureDepartmentName(feature) {
+  return feature?.properties?.NOMBDEP || feature?.properties?.name || "";
+}
+
+function getGeometryRings(geometry) {
+  if (!geometry || !geometry.type || !geometry.coordinates) return [];
+  if (geometry.type === "Polygon") return geometry.coordinates;
+  if (geometry.type === "MultiPolygon") return geometry.coordinates.flat();
+  return [];
+}
+
+function buildGeoBounds(features) {
+  let minLon = Infinity;
+  let maxLon = -Infinity;
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+
+  for (const feature of features) {
+    for (const ring of getGeometryRings(feature.geometry)) {
+      for (const point of ring) {
+        const [lon, lat] = point;
+        if (lon < minLon) minLon = lon;
+        if (lon > maxLon) maxLon = lon;
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+      }
+    }
+  }
+
+  return { minLon, maxLon, minLat, maxLat };
+}
+
+function geometryToPath(geometry, project) {
+  const rings = getGeometryRings(geometry);
+  const parts = [];
+
+  for (const ring of rings) {
+    if (!ring.length) continue;
+    let path = "";
+    ring.forEach(([lon, lat], index) => {
+      const [x, y] = project(lon, lat);
+      path += `${index === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)} `;
+    });
+    path += "Z";
+    parts.push(path);
+  }
+
+  return parts.join(" ");
+}
+
+function quantile(values, ratio) {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const position = Math.min(sorted.length - 1, Math.max(0, Math.floor((sorted.length - 1) * ratio)));
+  return sorted[position];
+}
+
+function getMapIntensityLevel(value, thresholds) {
+  if (value >= thresholds.q80) return "MUY ALTO";
+  if (value >= thresholds.q60) return "ALTO";
+  if (value >= thresholds.q40) return "MEDIO";
+  if (value >= thresholds.q20) return "BAJO";
+  return "MUY BAJO";
+}
+
+function imageFallbackForClass(hotelClass) {
+  const key = String(hotelClass || "").trim().toUpperCase();
+  return FALLBACK_BY_CLASS[key] || fallbackHotel;
+}
+
+function imageRemoteForClass(hotelClass, seed = 0) {
+  const key = String(hotelClass || "").trim().toUpperCase();
+  const list = REMOTE_IMAGES_BY_CLASS[key] || REMOTE_IMAGES_BY_CLASS.HOTEL;
+  const numericSeed = Number(seed) || 0;
+  const index = Math.abs(numericSeed) % list.length;
+  return list[index];
+}
+
+function isInvalidImageSource(source) {
+  const value = String(source || "").trim().toLowerCase();
+  if (!value) return true;
+  return value.includes("placeholder") || value.includes("undefined") || value.includes("null");
+}
+
+function imageSourceForHotel(hotel) {
+  if (!isInvalidImageSource(hotel?.imagen)) {
+    return hotel.imagen;
+  }
+  return imageRemoteForClass(hotel?.clase, hotel?.id || hotel?.nombre_comercial?.length || 0);
+}
 
 function starsVisual(stars) {
   const count = Math.max(1, Math.min(5, Number(stars) || 1));
@@ -104,12 +280,65 @@ function sortTouristRecommendations(hotels) {
   });
 }
 
+function mixHotelsForBrowse(hotels) {
+  const buckets = new Map();
+  for (const hotel of hotels) {
+    const key = String(hotel.clase || "OTROS");
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(hotel);
+  }
+
+  const classes = [...buckets.keys()].sort();
+  const mixed = [];
+  let pending = true;
+  let index = 0;
+
+  while (pending) {
+    pending = false;
+    for (const clase of classes) {
+      const list = buckets.get(clase) || [];
+      if (index < list.length) {
+        mixed.push(list[index]);
+        pending = true;
+      }
+    }
+    index += 1;
+  }
+
+  return mixed;
+}
+
+function sortByQualityThenConfidence(hotels) {
+  return [...hotels].sort((a, b) => {
+    const aQuality = a.calidad_ia === "Alta Calidad" ? 0 : 1;
+    const bQuality = b.calidad_ia === "Alta Calidad" ? 0 : 1;
+    if (aQuality !== bQuality) return aQuality - bQuality;
+
+    const confDiff = Number(b.confianza_ia || 0) - Number(a.confianza_ia || 0);
+    if (confDiff !== 0) return confDiff;
+
+    return Number(b.estrellas_ia || b.estrellas || 0) - Number(a.estrellas_ia || a.estrellas || 0);
+  });
+}
+
+function touristStarsByIA(hotel) {
+  if (hotel.estrellas_visual) return hotel.estrellas_visual;
+  if (hotel.recomendado_ia !== undefined) return hotel.recomendado_ia ? "★★★★★" : "★★★☆☆";
+  const bayes = Number(hotel.prob_alta_calidad_bayes || 0);
+  if (bayes >= 70) return "★★★★★";
+  if (bayes >= 50) return "★★★★☆";
+  return starsVisual(hotel.estrellas);
+}
+
 function App() {
-  const [activeSection, setActiveSection] = useState("inicio");
+  const [activeSection, setActiveSection] = useState("inversionista");
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historyError, setHistoryError] = useState(null);
   const [dashboardData, setDashboardData] = useState(null);
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [dashboardSelectedDepartment, setDashboardSelectedDepartment] = useState("TODOS");
+  const [mapTooltip, setMapTooltip] = useState(null);
 
   const [investorForm, setInvestorForm] = useState({
     departamento: "",
@@ -127,23 +356,23 @@ function App() {
 
   const [touristFilter, setTouristFilter] = useState({
     departamento: "TODOS",
-    provincia: "TODOS",
-    distrito: "TODOS",
-    clase: "TODOS",
-    estrellas: "TODOS",
   });
-  const [touristPrioritizeIA, setTouristPrioritizeIA] = useState(true);
+  const [touristPrioritizeIA, setTouristPrioritizeIA] = useState(false);
+  const [touristAppliedFilter, setTouristAppliedFilter] = useState({ departamento: "TODOS" });
+  const [touristAppliedPrioritizeIA, setTouristAppliedPrioritizeIA] = useState(false);
   const [touristAILoading, setTouristAILoading] = useState(false);
   const [touristAIError, setTouristAIError] = useState(null);
   const [touristAHotels, setTouristAHotels] = useState([]);
   const [touristHotels, setTouristHotels] = useState([]);
+  const [touristFeaturedHotels, setTouristFeaturedHotels] = useState([]);
+  const [touristSimilarHotels, setTouristSimilarHotels] = useState([]);
   const [touristLoading, setTouristLoading] = useState(false);
   const [touristRequestError, setTouristRequestError] = useState(null);
-  const [touristAvailable, setTouristAvailable] = useState({ provincias: [], distritos: [], clases: [] });
   const [catalog, setCatalog] = useState({ departamentos: [], clases: [], estrellas: [], location_tree: {} });
   const [touristTotalPages, setTouristTotalPages] = useState(1);
   const [touristTotalItems, setTouristTotalItems] = useState(0);
   const [touristPage, setTouristPage] = useState(1);
+  const hideSidebar = activeSection === "turista";
 
   const fetchHistory = async () => {
     setLoadingHistory(true);
@@ -158,18 +387,22 @@ function App() {
     }
   };
 
-  const fetchDashboard = async () => {
+  const fetchDashboard = async (department = "TODOS") => {
+    setDashboardLoading(true);
     try {
-      const data = await getDashboard();
+      const data = await getDashboard(department);
       setDashboardData(data);
+      setDashboardSelectedDepartment(data?.filtro_departamento || "TODOS");
     } catch (error) {
       setDashboardData(null);
+    } finally {
+      setDashboardLoading(false);
     }
   };
 
   useEffect(() => {
     fetchHistory();
-    fetchDashboard();
+    fetchDashboard("TODOS");
   }, []);
 
   const fetchTouristHotels = async (filters, page) => {
@@ -183,14 +416,12 @@ function App() {
       };
 
       if (filters.departamento !== "TODOS") params.departamento = filters.departamento;
-      if (filters.provincia !== "TODOS") params.provincia = filters.provincia;
-      if (filters.distrito !== "TODOS") params.distrito = filters.distrito;
-      if (filters.clase !== "TODOS") params.clase = filters.clase;
-      if (filters.estrellas !== "TODOS") params.estrellas = Number(filters.estrellas);
+      // Tourist flow only searches by department.
 
       const response = await getHotels(params);
       setTouristHotels(response.items || []);
-      setTouristAvailable(response.available || { provincias: [], distritos: [], clases: [] });
+      setTouristFeaturedHotels(response.destacados || []);
+      setTouristSimilarHotels([]);
       if (response.catalog) {
         setCatalog(response.catalog);
       }
@@ -198,7 +429,8 @@ function App() {
       setTouristTotalItems(Number(response.total || 0));
     } catch (error) {
       setTouristHotels([]);
-      setTouristAvailable({ provincias: [], distritos: [], clases: [] });
+      setTouristFeaturedHotels([]);
+      setTouristSimilarHotels([]);
       setTouristTotalPages(1);
       setTouristTotalItems(0);
       setTouristRequestError("No se pudo cargar los hospedajes desde el backend.");
@@ -208,8 +440,27 @@ function App() {
   };
 
   useEffect(() => {
-    fetchTouristHotels(touristFilter, touristPage);
-  }, [touristFilter, touristPage]);
+    fetchTouristHotels(touristAppliedFilter, touristPage);
+  }, [touristAppliedFilter, touristPage]);
+
+  useEffect(() => {
+    const fetchSimilar = async () => {
+      const selected = (touristAHotels.length > 0 ? touristAHotels : touristHotels)[0];
+      if (!selected?.id) {
+        setTouristSimilarHotels([]);
+        return;
+      }
+      try {
+        const scopeDep = touristAppliedFilter.departamento !== "TODOS" ? touristAppliedFilter.departamento : selected.departamento;
+        const data = await getSimilarHotels(selected.id, 6, scopeDep);
+        setTouristSimilarHotels(data);
+      } catch (error) {
+        setTouristSimilarHotels([]);
+      }
+    };
+
+    fetchSimilar();
+  }, [touristAHotels, touristAppliedFilter.departamento, touristHotels]);
 
   const provinceOptions = useMemo(() => {
     if (!investorForm.departamento) {
@@ -229,21 +480,24 @@ function App() {
     return touristAHotels.length > 0 ? touristAHotels : touristHotels;
   }, [touristAHotels, touristHotels]);
 
-  const touristOptions = useMemo(() => {
-    return {
-      provinces: touristAvailable.provincias || [],
-      districts: touristAvailable.distritos || [],
-      classes: touristAvailable.clases || catalog.clases || [],
-      stars: catalog.estrellas || [],
-    };
-  }, [catalog.clases, catalog.estrellas, touristAvailable]);
+  const touristOptions = useMemo(() => ({ departamentos: catalog.departamentos || [] }), [catalog.departamentos]);
 
   const touristVisibleHotels = useMemo(() => {
     if (touristAHotels.length > 0) {
-      return touristPrioritizeIA ? sortTouristRecommendations(filteredTuristaData) : filteredTuristaData;
+      return touristAppliedPrioritizeIA ? sortByQualityThenConfidence(filteredTuristaData) : mixHotelsForBrowse(filteredTuristaData);
     }
-    return filteredTuristaData;
-  }, [filteredTuristaData, touristAHotels, touristPrioritizeIA]);
+    if (!touristAppliedPrioritizeIA) return mixHotelsForBrowse(filteredTuristaData);
+    return [...filteredTuristaData].sort((a, b) => {
+      const bayesDiff = Number(b.prob_alta_calidad_bayes || 0) - Number(a.prob_alta_calidad_bayes || 0);
+      if (bayesDiff !== 0) return bayesDiff;
+      return Number(b.estrellas || 0) - Number(a.estrellas || 0);
+    });
+  }, [filteredTuristaData, touristAHotels, touristAppliedPrioritizeIA]);
+
+  const visibleModuleCards = useMemo(
+    () => SYSTEM_MODULES.filter((module) => module.id !== "turista"),
+    []
+  );
 
   const kpis = useMemo(() => {
     return {
@@ -257,6 +511,81 @@ function App() {
   const starsDistribution = dashboardData?.por_categoria || [];
 
   const departamentosDistribution = dashboardData?.por_departamento || [];
+  const mapDepartments = dashboardData?.mapa_departamentos || [];
+  const topDepartments = dashboardData?.top_departamentos || [];
+
+  const peruMapPaths = useMemo(() => {
+    const features = peruDepartmentsGeo?.features || [];
+    if (!features.length) return [];
+
+    const bounds = buildGeoBounds(features);
+    const lonRange = Math.max(0.0001, bounds.maxLon - bounds.minLon);
+    const latRange = Math.max(0.0001, bounds.maxLat - bounds.minLat);
+    const padding = 26;
+    const width = MAP_WIDTH - padding * 2;
+    const height = MAP_HEIGHT - padding * 2;
+
+    const project = (lon, lat) => {
+      const x = padding + ((lon - bounds.minLon) / lonRange) * width;
+      const y = padding + (1 - (lat - bounds.minLat) / latRange) * height;
+      return [x, y];
+    };
+
+    return features.map((feature, index) => {
+      const name = getFeatureDepartmentName(feature);
+      return {
+        name,
+        key: normalizeDepartmentKey(name),
+        index,
+        path: geometryToPath(feature.geometry, project),
+      };
+    });
+  }, []);
+
+  const mapStatsByDepartment = useMemo(() => {
+    const next = new Map();
+    for (const item of mapDepartments) {
+      next.set(normalizeDepartmentKey(item.name), item);
+    }
+    return next;
+  }, [mapDepartments]);
+
+  const mapThresholds = useMemo(() => {
+    const values = mapDepartments.map((item) => Number(item.value) || 0).filter((value) => value >= 0);
+    return {
+      q20: quantile(values, 0.2),
+      q40: quantile(values, 0.4),
+      q60: quantile(values, 0.6),
+      q80: quantile(values, 0.8),
+    };
+  }, [mapDepartments]);
+
+  const handleMapDepartmentClick = async (departmentName) => {
+    const nextDepartment = normalizeDepartmentKey(departmentName) === normalizeDepartmentKey(dashboardSelectedDepartment)
+      ? "TODOS"
+      : departmentName;
+    await fetchDashboard(nextDepartment);
+  };
+
+  const handleMapDepartmentHover = (event, departmentName) => {
+    const stats = mapStatsByDepartment.get(normalizeDepartmentKey(departmentName)) || {
+      name: departmentName,
+      value: 0,
+      promedio_estrellas: 0,
+      alta_calidad: 0,
+    };
+
+    const svgRect = event.currentTarget.ownerSVGElement?.getBoundingClientRect();
+    if (!svgRect) return;
+
+    setMapTooltip({
+      x: event.clientX - svgRect.left + 10,
+      y: event.clientY - svgRect.top + 10,
+      data: stats,
+    });
+  };
+
+  const hideMapTooltip = () => setMapTooltip(null);
 
   const submitPrediction = async (event) => {
     event.preventDefault();
@@ -286,7 +615,7 @@ function App() {
       });
       setPredictResult(response.result);
       await fetchHistory();
-      await fetchDashboard();
+      await fetchDashboard(dashboardSelectedDepartment);
     } catch (error) {
       setPredictError("No se pudo obtener prediccion. Verifica que FastAPI este ejecutandose en puerto 8000.");
     } finally {
@@ -315,20 +644,17 @@ function App() {
   };
 
   const updateTouristFilter = (key, value) => {
-    setTouristFilter((current) => {
-      const nextFilter = { ...current, [key]: value };
-      if (key === "departamento") {
-        nextFilter.provincia = "TODOS";
-        nextFilter.distrito = "TODOS";
-      }
-      if (key === "provincia") {
-        nextFilter.distrito = "TODOS";
-      }
-      return nextFilter;
-    });
-    setTouristAHotels([]);
+    setTouristFilter((current) => ({ ...current, [key]: value }));
     setTouristAIError(null);
+  };
+
+  const runTouristSearch = () => {
     setTouristPage(1);
+    setTouristAHotels([]);
+    setTouristSimilarHotels([]);
+    setTouristAIError(null);
+    setTouristAppliedFilter({ ...touristFilter });
+    setTouristAppliedPrioritizeIA(touristPrioritizeIA);
   };
 
   const applyTouristAI = async () => {
@@ -354,13 +680,24 @@ function App() {
 
     try {
       const enrichedHotels = await recommendTourist(hotelsToAnalyze);
-      setTouristAHotels(touristPrioritizeIA ? sortTouristRecommendations(enrichedHotels) : enrichedHotels);
+      setTouristAHotels(touristAppliedPrioritizeIA ? sortTouristRecommendations(enrichedHotels) : enrichedHotels);
     } catch (error) {
       setTouristAIError("No se pudo aplicar la recomendación IA. Verifica que FastAPI esté ejecutándose.");
     } finally {
       setTouristAILoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!touristAppliedPrioritizeIA || touristHotels.length === 0 || touristAILoading) {
+      if (!touristAppliedPrioritizeIA) {
+        setTouristAHotels([]);
+      }
+      return;
+    }
+    applyTouristAI();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [touristAppliedPrioritizeIA, touristHotels, touristAppliedFilter.departamento, touristPage]);
 
   const resetInvestorForm = () => {
     setInvestorForm({
@@ -404,7 +741,10 @@ function App() {
 
       <div className="dashboard-main-grid">
         <article className="panel card-chart">
-          <h3>Distribucion de Hospedajes por Categoria</h3>
+          <h3>
+            Distribucion de Hospedajes por Categoria
+            {dashboardSelectedDepartment !== "TODOS" ? ` (${cleanLabel(dashboardSelectedDepartment)})` : ""}
+          </h3>
           <div className="bar-chart">
             {starsDistribution.map((item) => (
               <div key={item.star} className="bar-item">
@@ -413,23 +753,6 @@ function App() {
                 <span>{item.star} ★</span>
               </div>
             ))}
-          </div>
-        </article>
-
-        <article className="panel map-card">
-          <h3>Mapa de Hospedajes por Departamento</h3>
-          <div className="peru-map-wrap">
-            <svg viewBox="0 0 220 310" className="peru-map" role="img" aria-label="Mapa estilizado del Peru">
-              <path d="M104 12l34 18 9 24 26 20-12 27 17 18-15 34 8 24-23 29-6 31-27 24-37 8-18-16-22 7-16-19-20-6-3-28 15-22-7-29 14-23-7-30 18-20 17-34 33-17z" fill="#d7e7fb" stroke="#9ab8e4" strokeWidth="2" />
-              <path d="M104 12l34 18 9 24-21 12-25-6-9-19z" fill="#7aa8e8" />
-              <path d="M84 102l28 9 8 30-18 16-26-7-7-23z" fill="#2a6ed7" />
-              <path d="M122 164l28 8-8 27-18 13-20-10 4-23z" fill="#4f8fe8" />
-              <path d="M75 206l24 11-2 25-22 8-16-13 6-21z" fill="#6da0ea" />
-            </svg>
-          </div>
-          <div className="legend">
-            <span><i className="legend-dot low" /> Bajo</span>
-            <span><i className="legend-dot high" /> Alto</span>
           </div>
         </article>
 
@@ -453,7 +776,10 @@ function App() {
 
       <div className="bottom-grid">
         <article className="panel card-chart">
-          <h3>Hospedajes por Departamento</h3>
+          <h3>
+            Hospedajes por Departamento
+            {dashboardSelectedDepartment !== "TODOS" ? ` (${cleanLabel(dashboardSelectedDepartment)})` : ""}
+          </h3>
           <div className="horizontal-bars">
             {departamentosDistribution.map((item) => (
               <div key={item.name} className="hbar-row">
@@ -461,6 +787,99 @@ function App() {
                 <div className="hbar-track">
                   <div className="hbar-fill" style={{ width: `${Math.max(10, item.value / 22)}%` }} />
                 </div>
+                <strong>{item.value}</strong>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="panel map-card map-card-compact">
+          <h3>Mapa de Hospedajes por Departamento</h3>
+          <div className="map-filter-row">
+            <span className="muted">
+              {dashboardSelectedDepartment === "TODOS"
+                ? "Vista nacional"
+                : `Filtrado por: ${cleanLabel(dashboardSelectedDepartment)}`}
+            </span>
+            <button
+              type="button"
+              className="secondary-btn"
+              onClick={() => fetchDashboard("TODOS")}
+              disabled={dashboardLoading || dashboardSelectedDepartment === "TODOS"}
+            >
+              Ver todo Peru
+            </button>
+          </div>
+
+          <div className="map-analytics-layout">
+            <div className="peru-map-wrap interactive" onMouseLeave={hideMapTooltip}>
+              <svg
+                viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
+                className="peru-map analytic"
+                role="img"
+                aria-label="Mapa analitico del Peru por departamentos"
+              >
+                {peruMapPaths.map((shape) => {
+                  const stats = mapStatsByDepartment.get(shape.key) || {
+                    name: shape.name,
+                    value: 0,
+                    promedio_estrellas: 0,
+                    alta_calidad: 0,
+                  };
+                  const level = getMapIntensityLevel(Number(stats.value || 0), mapThresholds);
+                  const isSelected = normalizeDepartmentKey(dashboardSelectedDepartment) === shape.key;
+
+                  return (
+                    <path
+                      key={shape.key}
+                      d={shape.path}
+                      className={`dept-shape ${isSelected ? "selected" : ""}`}
+                      style={{
+                        fill: MAP_LEVEL_COLORS[level],
+                        animationDelay: `${shape.index * 16}ms`,
+                      }}
+                      onMouseMove={(event) => handleMapDepartmentHover(event, shape.name)}
+                      onClick={() => handleMapDepartmentClick(shape.name)}
+                    >
+                      <title>{cleanLabel(shape.name)}</title>
+                    </path>
+                  );
+                })}
+              </svg>
+
+              {mapTooltip && (
+                <div className="map-tooltip" style={{ left: mapTooltip.x, top: mapTooltip.y }}>
+                  <strong>{cleanLabel(mapTooltip.data.name)}</strong>
+                  <span>Hospedajes: {Number(mapTooltip.data.value || 0).toLocaleString("es-PE")}</span>
+                  <span>Promedio de estrellas: {Number(mapTooltip.data.promedio_estrellas || 0).toFixed(2)}</span>
+                  <span>Alta Calidad: {Number(mapTooltip.data.alta_calidad || 0).toFixed(2)}%</span>
+                </div>
+              )}
+            </div>
+
+            <div className="legend legend-vertical">
+              {[
+                "MUY ALTO",
+                "ALTO",
+                "MEDIO",
+                "BAJO",
+                "MUY BAJO",
+              ].map((level) => (
+                <span key={level}>
+                  <i className="legend-dot" style={{ background: MAP_LEVEL_COLORS[level] }} />
+                  {cleanLabel(level)}
+                </span>
+              ))}
+            </div>
+          </div>
+        </article>
+
+        <article className="panel map-top-list-panel">
+          <h3>Top 5 departamentos con mayor número de hospedajes</h3>
+          <div className="map-side-list">
+            {topDepartments.map((item, idx) => (
+              <div key={item.name} className="map-row">
+                <span>{idx + 1}. {cleanLabel(item.name)}</span>
                 <strong>{item.value}</strong>
               </div>
             ))}
@@ -611,30 +1030,17 @@ function App() {
 
   const renderTurista = () => (
     <section className="section-grid">
-      <article className="panel">
-        <h2>Buscar Hospedajes</h2>
-        <p className="muted">Filtra por ubicacion, clase y categoria para descubrir opciones recomendadas.</p>
-        <div className="filters-row">
-          <select value={touristFilter.departamento} onChange={(e) => updateTouristFilter("departamento", e.target.value)}>
-            <option value="TODOS">Departamento</option>
-            {(dashboardData?.por_departamento || []).map((dep) => <option key={dep.name} value={dep.name}>{dep.name}</option>)}
-          </select>
-          <select value={touristFilter.provincia} onChange={(e) => updateTouristFilter("provincia", e.target.value)}>
-            <option value="TODOS">Provincia</option>
-            {touristOptions.provinces.map((prov) => <option key={prov} value={prov}>{prov}</option>)}
-          </select>
-          <select value={touristFilter.distrito} onChange={(e) => updateTouristFilter("distrito", e.target.value)}>
-            <option value="TODOS">Distrito</option>
-            {touristOptions.districts.map((dist) => <option key={dist} value={dist}>{dist}</option>)}
-          </select>
-          <select value={touristFilter.clase} onChange={(e) => updateTouristFilter("clase", e.target.value)}>
-            <option value="TODOS">Clase</option>
-            {touristOptions.classes.map((clase) => <option key={clase} value={clase}>{clase}</option>)}
-          </select>
-          <select value={touristFilter.estrellas} onChange={(e) => updateTouristFilter("estrellas", e.target.value)}>
-            <option value="TODOS">Estrellas</option>
-            {touristOptions.stars.map((star) => <option key={star} value={star}>{star} estrellas</option>)}
-          </select>
+      <article className="panel tourist-search-panel">
+        <h2>Buscador de Viajes</h2>
+        <p className="muted">Encuentra hospedajes por departamento y activa IA para priorizar los mejores.</p>
+        <div className="tourist-search-grid">
+          <label>
+            Departamento
+            <select value={touristFilter.departamento} onChange={(e) => updateTouristFilter("departamento", e.target.value)}>
+              <option value="TODOS">Todos</option>
+              {touristOptions.departamentos.map((dep) => <option key={dep} value={dep}>{cleanLabel(dep)}</option>)}
+            </select>
+          </label>
         </div>
 
         <div className="investor-actions" style={{ marginTop: 12 }}>
@@ -646,8 +1052,8 @@ function App() {
             />
             <span>Priorizar recomendados por IA</span>
           </label>
-          <button type="button" className="primary-btn" onClick={applyTouristAI} disabled={touristAILoading}>
-            {touristAILoading ? "Aplicando IA..." : "✨ Recomendar con IA"}
+          <button type="button" className="primary-btn" onClick={runTouristSearch}>
+            Buscar
           </button>
         </div>
 
@@ -658,15 +1064,44 @@ function App() {
         {!touristAILoading && touristVisibleHotels.length === 0 && <div className="empty-state" style={{ marginTop: 12 }}>No se encontraron hospedajes con los filtros seleccionados.</div>}
       </article>
 
+      {touristAppliedPrioritizeIA && touristFeaturedHotels.length > 0 && (
+        <article className="panel tourist-featured-panel">
+          <h3>Hospedajes Garantizados de Alta Calidad en todo el país</h3>
+          <div className="tourist-cards-grid">
+            {touristFeaturedHotels.map((hotel) => (
+              <article className="hotel-card" key={`featured-${hotel.id}`}>
+                <img
+                  src={imageSourceForHotel(hotel)}
+                  alt={hotel.nombre_comercial || hotel.nombre}
+                  onError={(event) => {
+                    event.currentTarget.onerror = null;
+                    event.currentTarget.src = imageFallbackForClass(hotel.clase);
+                  }}
+                />
+                <div className="hotel-content">
+                  <h4>{hotel.nombre_comercial || hotel.nombre}</h4>
+                  <p className="muted">{hotel.ubicacion || `${hotel.distrito}, ${hotel.provincia}, ${hotel.departamento}`}</p>
+                  <p><strong>Clase:</strong> {hotel.clase}</p>
+                  <p><strong>Estrellas IA:</strong> {touristStarsByIA(hotel)}</p>
+                  <div className="tourist-ia-block">
+                    <div className="tag good">Garantizado Alta Calidad</div>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </article>
+      )}
+
       <div className="tourist-cards-grid">
         {touristVisibleHotels.map((hotel) => (
           <article className="hotel-card" key={hotel.id || hotel.nombre}>
             <img
-              src={hotel.imagen || hotelPhoto}
+              src={imageSourceForHotel(hotel)}
               alt={hotel.nombre_comercial || hotel.nombre}
               onError={(event) => {
                 event.currentTarget.onerror = null;
-                event.currentTarget.src = hotelPhoto;
+                event.currentTarget.src = imageFallbackForClass(hotel.clase);
               }}
             />
             <div className="hotel-content">
@@ -674,10 +1109,19 @@ function App() {
               <p className="muted">{hotel.ubicacion || `${hotel.distrito}, ${hotel.provincia}, ${hotel.departamento}`}</p>
               <p><strong>Clase:</strong> {hotel.clase}</p>
               <p><strong>Categoría:</strong> {hotel.categoria || starsVisual(hotel.estrellas)}</p>
+              <p><strong>Estrellas IA:</strong> {touristStarsByIA(hotel)}</p>
               <p><strong>Camas / Habitaciones:</strong> {hotel.cama || hotel.camas} / {hotel.habi}</p>
               <p><strong>Teléfono:</strong> {hotel.telefono}</p>
               <p><strong>Correo:</strong> {hotel.email || hotel.correo}</p>
               <p><strong>Web:</strong> {hotel.web}</p>
+              {hotel.prob_alta_calidad_bayes !== undefined && (
+                <p><strong>Prob. Bayes:</strong> {Number(hotel.prob_alta_calidad_bayes || 0).toFixed(1)}%</p>
+              )}
+              {hotel.calidad_ia && (
+                <div className={hotel.calidad_ia === "Alta Calidad" ? "tag good" : "tag warn"}>
+                  {hotel.calidad_ia}
+                </div>
+              )}
               {hotel.recomendado_ia !== undefined && (
                 <div className="tourist-ia-block">
                   <div className={hotel.recomendado_ia ? "tag good" : "tag warn"}>
@@ -695,6 +1139,33 @@ function App() {
           </article>
         ))}
       </div>
+
+      {touristAppliedPrioritizeIA && touristSimilarHotels.length > 0 && (
+        <article className="panel tourist-featured-panel">
+          <h3>Hospedajes similares y con la misma garantía de calidad que te sugerimos considerar</h3>
+          <div className="tourist-cards-grid">
+            {touristSimilarHotels.map((hotel) => (
+              <article className="hotel-card" key={`similar-${hotel.id}`}>
+                <img
+                  src={imageSourceForHotel(hotel)}
+                  alt={hotel.nombre_comercial || hotel.nombre}
+                  onError={(event) => {
+                    event.currentTarget.onerror = null;
+                    event.currentTarget.src = imageFallbackForClass(hotel.clase);
+                  }}
+                />
+                <div className="hotel-content">
+                  <h4>{hotel.nombre_comercial || hotel.nombre}</h4>
+                  <p className="muted">{hotel.ubicacion || `${hotel.distrito}, ${hotel.provincia}, ${hotel.departamento}`}</p>
+                  <p><strong>Clase:</strong> {hotel.clase}</p>
+                  <p><strong>Similitud por IA:</strong> {Number(hotel.similitud_ia || 0).toFixed(1)}%</p>
+                  <p className="muted">{hotel.distancia_explicacion}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </article>
+      )}
 
       {touristTotalPages > 1 && (
         <div className="tourist-pagination panel">
@@ -790,33 +1261,37 @@ function App() {
         <div>
           <h1>Sistema Inteligente de Clasificacion de Hospedajes</h1>
           <p>
-            Plataforma analitica para turismo e inversion. Consulta el dashboard nacional, explora hospedajes y ejecuta
-            predicciones con inteligencia artificial en tiempo real.
+            Plataforma analitica para turismo e inversion. Selecciona un perfil de trabajo y accede a los modulos del sistema.
           </p>
-          <div className="hero-actions">
-            <button className="primary-btn" onClick={() => setActiveSection("dashboard")}>Ver Dashboard</button>
-            <button className="secondary-btn" onClick={() => setActiveSection("inversionista")}>Probar IA</button>
+
+          <div className="hero-actions" role="group" aria-label="Accesos rapidos por perfil">
+            <button
+              type="button"
+              className="primary-btn"
+              onClick={() => setActiveSection("inversionista")}
+            >
+              Ir a Inversionista
+            </button>
+            <button type="button" className="secondary-btn" onClick={() => setActiveSection("turista")}>Ir a Pestaña Turística</button>
           </div>
         </div>
       </article>
-      {renderDashboard()}
-    </section>
-  );
 
-  const renderAcerca = () => (
-    <section className="section-grid">
-      <article className="panel">
-        <h2>Acerca del Proyecto</h2>
-        <p>
-          Este sistema integra FastAPI + React para analizar hospedajes del Peru mediante modelos de IA entrenados para
-          estimar calidad y categoria de estrellas. El objetivo es apoyar decisiones de viaje y de inversion con una
-          interfaz moderna, clara y accionable.
-        </p>
-        <ul className="about-list">
-          <li>Backend con modelos preentrenados y persistencia en MongoDB.</li>
-          <li>Frontend dashboard con visualizaciones y flujo inversionista/turista.</li>
-          <li>Historial de predicciones para auditoria de decisiones.</li>
-        </ul>
+      <article className="panel modules-panel">
+        <h3>Modulos del Sistema</h3>
+        <div className="modules-grid">
+          {visibleModuleCards.map((module) => (
+            <button
+              key={module.id}
+              type="button"
+              className="module-card"
+              onClick={() => setActiveSection(module.id)}
+            >
+              <strong>{module.title}</strong>
+              <p>{module.description}</p>
+            </button>
+          ))}
+        </div>
       </article>
     </section>
   );
@@ -835,8 +1310,6 @@ function App() {
         return renderHistorial();
       case "mapa":
         return renderMapa();
-      case "acerca":
-        return renderAcerca();
       default:
         return renderInicio();
     }
@@ -844,7 +1317,7 @@ function App() {
 
   return (
     <div className="layout">
-      <aside className="sidebar">
+      {!hideSidebar && <aside className="sidebar">
         <div className="brand">
           <div className="brand-icon">H</div>
           <div>
@@ -865,12 +1338,30 @@ function App() {
             </button>
           ))}
         </nav>
-      </aside>
+      </aside>}
 
-      <main className="content">
+      <main className={hideSidebar ? "content no-sidebar" : "content"}>
         <header className="topbar">
+          <div className="topbar-row">
+            <div>
+              <h2>
+                {menuItems.find((item) => item.id === activeSection)?.label
+                  || (activeSection === "turista"
+                    ? "Turista"
+                    : activeSection === "mapa"
+                      ? "Mapa de Hoteles"
+                      : "Inicio")}
+              </h2>
+            </div>
+            <button
+              type="button"
+              className="secondary-btn"
+              onClick={() => setActiveSection(activeSection === "turista" ? "inversionista" : "turista")}
+            >
+              {activeSection === "turista" ? "Volver a Inversionista" : "Abrir Pestaña Turística"}
+            </button>
+          </div>
           <div>
-            <h2>{menuItems.find((item) => item.id === activeSection)?.label || "Inicio"}</h2>
             <p>Prediccion de calidad y categoria de hospedajes con inteligencia artificial.</p>
           </div>
         </header>

@@ -129,6 +129,8 @@ async def get_hoteles(
     distrito: Optional[str] = None,
     clase: Optional[str] = None,
     estrellas: Optional[int] = None,
+    presupuesto: Optional[str] = None,
+    grupo: Optional[int] = Query(default=None, ge=1),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=25, ge=1, le=25),
 ):
@@ -139,9 +141,34 @@ async def get_hoteles(
             distrito=distrito,
             clase=clase,
             estrellas=estrellas,
+            presupuesto=presupuesto,
+            grupo=grupo,
             page=page,
             page_size=page_size,
         )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/hoteles/similares")
+async def get_hoteles_similares(
+    hotel_id: int = Query(..., ge=1),
+    k: int = Query(default=6, ge=1, le=12),
+    departamento: Optional[str] = None,
+):
+    try:
+        return {"items": hotel_service.get_similares(hotel_id=hotel_id, k=k, departamento=departamento)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/hoteles/perfil-bayes")
+async def get_hoteles_perfil_bayes(
+    departamento: str,
+    clase: str,
+):
+    try:
+        return hotel_service.get_bayes_profile(departamento=departamento, clase=clase)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -156,8 +183,8 @@ async def get_history():
 
 
 @app.get("/dashboard")
-async def get_dashboard():
+async def get_dashboard(departamento: Optional[str] = Query(default=None)):
     try:
-        return dashboard_service.get_dashboard()
+        return dashboard_service.get_dashboard(departamento=departamento)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

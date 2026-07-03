@@ -90,8 +90,20 @@
   width: calc(100% - 270px);
 }
 
+.content.no-sidebar {
+  margin-left: 0;
+  width: 100%;
+}
+
 .topbar {
   margin-bottom: 18px;
+}
+
+.topbar-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
 }
 
 .topbar h2 {
@@ -132,6 +144,51 @@
   margin-top: 16px;
   display: flex;
   gap: 10px;
+}
+
+.view-mode-switch {
+  margin-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.modules-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.modules-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.module-card {
+  border: 1px solid #d5e4f7;
+  border-radius: 12px;
+  padding: 14px;
+  text-align: left;
+  background: linear-gradient(165deg, #ffffff 0%, #f3f8ff 100%);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.module-card:hover {
+  transform: translateY(-1px);
+  border-color: #b8d1f2;
+  box-shadow: 0 10px 20px rgba(20, 64, 116, 0.12);
+}
+
+.module-card strong {
+  display: block;
+  color: #1a406f;
+  margin-bottom: 6px;
+}
+
+.module-card p {
+  color: #4f6f94;
+  font-size: 13px;
 }
 
 .primary-btn,
@@ -211,7 +268,7 @@
 .dashboard-main-grid {
   display: grid;
   gap: 14px;
-  grid-template-columns: 1.3fr 1fr 1fr;
+  grid-template-columns: 1.4fr 1fr;
 }
 
 .card-chart .bar-chart {
@@ -255,6 +312,77 @@
   height: auto;
 }
 
+.peru-map.analytic {
+  width: min(100%, 360px);
+}
+
+.map-filter-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.map-analytics-layout {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.peru-map-wrap.interactive {
+  position: relative;
+  min-height: 360px;
+  border: 1px solid #d8e6fb;
+}
+
+.dept-shape {
+  stroke: #f6fbff;
+  stroke-width: 1.1;
+  cursor: pointer;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: mapReveal 520ms ease forwards;
+  transition: filter 0.2s ease, transform 0.2s ease, stroke 0.2s ease;
+}
+
+.dept-shape:hover {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+  stroke: #9cc3f3;
+}
+
+.dept-shape.selected {
+  stroke: #153c71;
+  stroke-width: 2;
+}
+
+.map-tooltip {
+  position: absolute;
+  min-width: 210px;
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid #c8daf3;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 10px 26px rgba(12, 45, 85, 0.2);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.map-tooltip strong {
+  color: #143c6b;
+  font-size: 13px;
+}
+
+.map-tooltip span {
+  color: #375c86;
+  font-size: 12px;
+}
+
 .legend {
   margin-top: 10px;
   display: flex;
@@ -270,6 +398,19 @@
   border-radius: 50%;
   display: inline-block;
   margin-right: 6px;
+}
+
+.legend-vertical {
+  margin-top: 0;
+  display: grid;
+  justify-content: start;
+  gap: 8px;
+  min-width: 115px;
+}
+
+.legend-vertical span {
+  display: flex;
+  align-items: center;
 }
 
 .legend-dot.low {
@@ -329,6 +470,7 @@
 .bottom-grid {
   display: grid;
   gap: 14px;
+  grid-template-columns: 1.2fr 1fr 0.9fr;
 }
 
 .horizontal-bars {
@@ -561,6 +703,57 @@
   gap: 10px;
 }
 
+.tourist-search-panel {
+  background: linear-gradient(165deg, #ffffff 0%, #f3f8ff 100%);
+}
+
+.tourist-search-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(220px, 360px);
+  margin-top: 10px;
+}
+
+.tourist-search-grid label {
+  display: grid;
+  gap: 6px;
+  color: #2d4f78;
+  font-size: 13px;
+}
+
+.tourist-bayes-insight {
+  border-left: 4px solid #2675dc;
+  background: linear-gradient(180deg, #fafdff 0%, #edf5ff 100%);
+}
+
+.tourist-featured-panel h3 {
+  margin-bottom: 10px;
+}
+
+.tourist-carousel-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.tourist-mini-card {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #f8fbff;
+  border: 1px solid #dbe8f8;
+}
+
+.tourist-mini-card strong {
+  color: #163a67;
+  font-size: 13px;
+}
+
+.tourist-mini-card small {
+  color: #4c6f96;
+}
+
 .tourist-cards-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -636,6 +829,42 @@ tbody td {
   gap: 8px;
 }
 
+.map-top-list {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #dbe7f8;
+  display: grid;
+  gap: 8px;
+}
+
+.map-top-list h4 {
+  color: #173d6d;
+  font-size: 13px;
+  text-align: center;
+}
+
+.map-top-list .map-side-list {
+  max-width: 420px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.map-top-list .map-row {
+  padding: 10px 12px;
+}
+
+.map-top-list-panel .map-side-list {
+  margin-top: 8px;
+}
+
+.map-card-compact .peru-map-wrap.interactive {
+  min-height: 320px;
+}
+
+.map-card-compact .peru-map.analytic {
+  width: min(100%, 300px);
+}
+
 .map-row {
   display: flex;
   justify-content: space-between;
@@ -644,6 +873,17 @@ tbody td {
   background: #f5f9ff;
   border: 1px solid #deebfb;
   color: #264b79;
+}
+
+@keyframes mapReveal {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .about-list {
@@ -658,8 +898,25 @@ tbody td {
     grid-template-columns: 1fr;
   }
 
+  .bottom-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .map-analytics-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .legend-vertical {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    min-width: 0;
+  }
+
   .tourist-cards-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .modules-grid {
+    grid-template-columns: 1fr;
   }
 
   .inversionista-grid {
@@ -667,6 +924,14 @@ tbody td {
   }
 
   .filters-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tourist-search-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tourist-carousel-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -712,5 +977,24 @@ tbody td {
 
   .tourist-cards-grid {
     grid-template-columns: 1fr;
+  }
+
+  .tourist-search-grid,
+  .tourist-carousel-row {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .map-filter-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .legend-vertical {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

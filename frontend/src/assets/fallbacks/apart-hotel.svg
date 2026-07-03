@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" role="img" aria-label="Apartamento apart hotel">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2b2f3a"/>
+      <stop offset="100%" stop-color="#6a7388"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="700" fill="url(#bg)"/>
+  <rect x="240" y="120" width="720" height="460" rx="14" fill="#dce3ef"/>
+  <rect x="290" y="170" width="120" height="120" fill="#8fb0d6"/>
+  <rect x="450" y="170" width="120" height="120" fill="#8fb0d6"/>
+  <rect x="610" y="170" width="120" height="120" fill="#8fb0d6"/>
+  <rect x="770" y="170" width="120" height="120" fill="#8fb0d6"/>
+  <rect x="290" y="320" width="120" height="120" fill="#8fb0d6"/>
+  <rect x="450" y="320" width="120" height="120" fill="#8fb0d6"/>
+  <rect x="610" y="320" width="120" height="120" fill="#8fb0d6"/>
+  <rect x="770" y="320" width="120" height="120" fill="#8fb0d6"/>
+  <text x="70" y="90" font-size="58" font-family="Arial, Helvetica, sans-serif" fill="#f4f6fb" font-weight="700">APART HOTEL</text>
+  <text x="70" y="140" font-size="32" font-family="Arial, Helvetica, sans-serif" fill="#d6deef">Vista tipo apartamento</text>
+</svg>

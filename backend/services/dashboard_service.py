@@ -15,16 +15,71 @@ class DashboardService:
         self.df.columns = [col.strip().upper() for col in self.df.columns]
         self.df["ESTRELLAS"] = pd.to_numeric(self.df.get("ESTRELLAS"), errors="coerce")
         self.df["ALTA_CALIDAD"] = pd.to_numeric(self.df.get("ALTA_CALIDAD"), errors="coerce").fillna(0).astype(int)
+        self.df["DEPARTAMENTO"] = self.df.get("DEPARTAMENTO", "").fillna("").astype(str).str.strip()
+        self.df["DEPARTAMENTO_KEY"] = self.df["DEPARTAMENTO"].map(self._normalize_text)
 
-    def get_dashboard(self) -> dict:
-        total = int(len(self.df))
-        promedio_estrellas = round(float(self.df["ESTRELLAS"].dropna().mean()), 2) if total else 0.0
-        departamentos_unicos = int(self.df["DEPARTAMENTO"].fillna("").astype(str).str.strip().replace("", pd.NA).dropna().nunique())
-        alta_count = int((self.df["ALTA_CALIDAD"] == 1).sum())
+    @staticmethod
+    def _normalize_text(value: str) -> str:
+        text = str(value or "").strip().upper()
+        replacements = {
+            "Á": "A",
+            "É": "E",
+            "Í": "I",
+            "Ó": "O",
+            "Ú": "U",
+            "Ü": "U",
+            "Ñ": "N",
+        }
+        for src, target in replacements.items():
+            text = text.replace(src, target)
+        return text
+
+    def _department_metrics(self, frame: pd.DataFrame) -> list[dict]:
+        if frame.empty:
+            return []
+
+        grouped = (
+            frame.assign(DEPARTAMENTO=frame["DEPARTAMENTO"].replace("", "SIN_DATO"))
+            .groupby("DEPARTAMENTO", as_index=False)
+            .agg(
+                value=("DEPARTAMENTO", "size"),
+                promedio_estrellas=("ESTRELLAS", "mean"),
+                alta_calidad_percent=("ALTA_CALIDAD", lambda s: float((s == 1).mean() * 100) if len(s) else 0.0),
+            )
+            .sort_values("value", ascending=False)
+        )
+
+        payload = []
+        for _, row in grouped.iterrows():
+            payload.append(
+                {
+                    "name": str(row["DEPARTAMENTO"]),
+                    "value": int(row["value"]),
+                    "promedio_estrellas": round(float(row["promedio_estrellas"]), 2)
+                    if pd.notna(row["promedio_estrellas"])
+                    else 0.0,
+                    "alta_calidad": round(float(row["alta_calidad_percent"]), 2),
+                }
+            )
+
+        return payload
+
+    def get_dashboard(self, departamento: str | None = None) -> dict:
+        requested_department = str(departamento or "").strip()
+        requested_key = self._normalize_text(requested_department)
+
+        scoped_df = self.df
+        if requested_department and requested_key not in {"TODOS", "ALL"}:
+            scoped_df = self.df[self.df["DEPARTAMENTO_KEY"] == requested_key]
+
+        total = int(len(scoped_df))
+        promedio_estrellas = round(float(scoped_df["ESTRELLAS"].dropna().mean()), 2) if total else 0.0
+        departamentos_unicos = int(scoped_df["DEPARTAMENTO"].replace("", pd.NA).dropna().nunique())
+        alta_count = int((scoped_df["ALTA_CALIDAD"] == 1).sum())
         alta_percent = round((alta_count / total) * 100, 2) if total else 0.0
 
         por_categoria = (
-            self.df.dropna(subset=["ESTRELLAS"])
+            scoped_df.dropna(subset=["ESTRELLAS"])
             .groupby("ESTRELLAS", as_index=False)
             .size()
             .rename(columns={"size": "value"})
@@ -35,19 +90,20 @@ class DashboardService:
             for _, row in por_categoria.iterrows()
         ]
 
-        por_departamento = (
-            self.df.assign(DEPARTAMENTO=self.df["DEPARTAMENTO"].fillna("SIN_DATO").astype(str).str.strip())
-            .groupby("DEPARTAMENTO", as_index=False)
-            .size()
-            .rename(columns={"size": "value", "DEPARTAMENTO": "name"})
-            .sort_values("value", ascending=False)
-        )
         por_departamento_payload = [
-            {"name": str(row["name"]), "value": int(row["value"])}
-            for _, row in por_departamento.iterrows()
+            {"name": row["name"], "value": row["value"]}
+            for row in self._department_metrics(scoped_df)
         ]
 
+        mapa_departamentos = self._department_metrics(self.df)
+        top_departamentos = mapa_departamentos[:5]
+
+        filtro_departamento = "TODOS"
+        if requested_department and requested_key not in {"TODOS", "ALL"}:
+            filtro_departamento = requested_department if total == 0 else str(scoped_df.iloc[0]["DEPARTAMENTO"])
+
         return {
+            "filtro_departamento": filtro_departamento,
             "total_hospedajes": total,
             "promedio_estrellas": promedio_estrellas,
             "departamentos": departamentos_unicos,
@@ -55,4 +111,6 @@ class DashboardService:
             "alta_calidad_count": alta_count,
             "por_categoria": por_categoria_payload,
             "por_departamento": por_departamento_payload,
+            "mapa_departamentos": mapa_departamentos,
+            "top_departamentos": top_departamentos,
         }

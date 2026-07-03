@@ -21,13 +21,31 @@ export async function getHistory() {
   return response.data.history || [];
 }
 
-export async function getDashboard() {
-  const response = await axios.get(`${API_BASE}/dashboard`);
+export async function getDashboard(departamento) {
+  const params = {};
+  if (departamento && departamento !== "TODOS") {
+    params.departamento = departamento;
+  }
+  const response = await axios.get(`${API_BASE}/dashboard`, { params });
   return response.data;
 }
 
 export async function getHotels(params = {}) {
   const response = await axios.get(`${API_BASE}/hoteles`, { params });
+  return response.data;
+}
+
+export async function getSimilarHotels(hotelId, k = 6, departamento) {
+  const response = await axios.get(`${API_BASE}/hoteles/similares`, {
+    params: { hotel_id: hotelId, k, departamento },
+  });
+  return response.data.items || [];
+}
+
+export async function getBayesProfile(departamento, clase) {
+  const response = await axios.get(`${API_BASE}/hoteles/perfil-bayes`, {
+    params: { departamento, clase },
+  });
   return response.data;
 }
 

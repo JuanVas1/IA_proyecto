@@ -1,0 +1,16 @@
+id,nombre_comercial,departamento,provincia,distrito,ubicacion,clase,categoria,estrellas,cama,habi,telefono,email,web,imagen_tipo
+1,Hotel Miraflores Premium,LIMA,LIMA,MIRAFLORES,"Av. Larco 120, Miraflores, Lima",HOTEL,4 Estrellas,4,120,60,(01) 456-8890,reservas@miraflorespremium.pe,www.miraflorespremium.pe,HOTEL
+2,Hostal Sol del Sur,AREQUIPA,AREQUIPA,YANAHUARA,"Calle Mercaderes 205, Yanahuara, Arequipa",HOSTAL,3 Estrellas,3,80,34,(054) 299-144,contacto@hostalsoldelsur.pe,www.hostalsoldelsur.pe,HOSTAL
+3,Hotel Cusco Plaza,CUSCO,CUSCO,SAN SEBASTIAN,"Av. El Sol 450, Cusco",HOTEL,5 Estrellas,5,150,70,(084) 880-113,ventas@cuscoplaza.pe,www.cuscoplaza.pe,HOTEL
+4,Albergue Costa Norte,PIURA,PIURA,CATACAOS,"Av. Grau 88, Catacaos, Piura",ALBERGUE,2 Estrellas,2,42,20,(073) 600-421,info@costanorte.pe,www.costanorte.pe,ALBERGUE
+5,Resort Valle Sagrado,CUSCO,URUBAMBA,OLLANTAYTAMBO,"Km 72 Valle Sagrado, Urubamba",RESORT,5 Estrellas,5,180,90,(084) 774-012,reservas@valleSagradoResort.pe,www.vallesagradoresort.pe,RESORT
+6,Apart Hotel Bohemio,LA LIBERTAD,TRUJILLO,VICTOR LARCO,"Av. Larco 700, Trujillo",APART HOTEL,4 Estrellas,4,96,48,(044) 280-115,hola@apartbohemio.pe,www.apartbohemio.pe,APART HOTEL
+7,Hotel Hacienda Andina,LAMBAYEQUE,CHICLAYO,LA VICTORIA,"Av. Balta 1020, Chiclayo",HOTEL,4 Estrellas,4,110,55,(074) 345-900,reservas@haciendaandina.pe,www.haciendaandina.pe,HOTEL
+8,Hostal Inti Wasi,JUNIN,HUANCAYO,EL TAMBO,"Jr. Real 555, Huancayo",HOSTAL,3 Estrellas,3,74,30,(064) 221-770,info@intiwasi.pe,www.intiwasi.pe,HOSTAL
+9,Resort Misti View,AREQUIPA,AREQUIPA,CERRO COLORADO,"Av. Ejercito 900, Arequipa",RESORT,5 Estrellas,5,200,100,(054) 404-220,contacto@mistiview.pe,www.mistiview.pe,RESORT
+10,Apart Hotel Costa Verde,LIMA,LIMA,BARRANCO,"Malecon Paul Harris 230, Barranco",APART HOTEL,4 Estrellas,4,88,44,(01) 512-772,reservas@costaverdeaparthotel.pe,www.costaverdeaparthotel.pe,APART HOTEL
+11,Hotel Laguna Azul,LORETO,MAYNAS,IQUITOS,"Jr. Nauta 420, Iquitos",HOTEL,4 Estrellas,4,104,52,(065) 264-993,info@lagunaazul.pe,www.lagunaazul.pe,HOTEL
+12,Hostal Puno Lake,PUNO,PUNO,ACORA,"Av. Titicaca 300, Puno",HOSTAL,3 Estrellas,3,64,28,(051) 300-227,contacto@punolake.pe,www.punolake.pe,HOSTAL
+13,Resort Bosque de Pimentel,CAJAMARCA,CAJAMARCA,BANOS DEL INCA,"Km 6 Carretera Cajamarca-Banos del Inca",RESORT,5 Estrellas,5,170,82,(076) 433-111,reservas@bosquepimentel.pe,www.bosquepimentel.pe,RESORT
+14,Albergue Ruta del Sol,ICA,ICA,PARCONA,"Av. San Martin 120, Ica",ALBERGUE,2 Estrellas,2,36,18,(056) 240-912,info@rutadelsol.pe,www.rutadelsol.pe,ALBERGUE
+15,Hotel Chiclayo Centro,LAMBAYEQUE,CHICLAYO,CHICLAYO,"Jr. San Jose 210, Chiclayo",HOTEL,4 Estrellas,4,98,49,(074) 345-221,reservas@chiclayocentro.pe,www.chiclayocentro.pe,HOTEL

@@ -2,36 +2,46 @@ import joblib
 import pandas as pd
 import os
 
-MODELS_DIR = r"c:\Users\user\Documents\GitHub\IA_proyecto\backend\models"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODELS_DIR = os.path.join(BASE_DIR, "models")
 
-knn_model = joblib.load(os.path.join(MODELS_DIR, "modelo_knn.pkl"))
-bayes_model = joblib.load(os.path.join(MODELS_DIR, "modelo_bayes.pkl"))
-model_columns = joblib.load(os.path.join(MODELS_DIR, "columnas_modelo.pkl"))
+def load_models():
+    alta_model = joblib.load(os.path.join(MODELS_DIR, "modelo_alta_calidad.pkl"))
+    estrellas_model = joblib.load(os.path.join(MODELS_DIR, "modelo_estrellas.pkl"))
+    preprocesador = joblib.load(os.path.join(MODELS_DIR, "preprocesador.pkl"))
+    scaler_alta = joblib.load(os.path.join(MODELS_DIR, "scaler_alta.pkl"))
+    scaler_est = joblib.load(os.path.join(MODELS_DIR, "scaler_est.pkl"))
+    return alta_model, estrellas_model, preprocesador, scaler_alta, scaler_est
 
-def test_model(cama, habi, depto, clase):
-    input_data = pd.DataFrame(columns=model_columns)
-    input_data.loc[0] = 0
-    input_data.at[0, "CAMA"] = cama
-    input_data.at[0, "HABI"] = habi
-    if depto in model_columns:
-        input_data.at[0, depto] = 1
-    if clase in model_columns:
-        input_data.at[0, clase] = 1
-        
-    knn_pred = knn_model.predict(input_data)[0]
-    bayes_pred = bayes_model.predict(input_data)[0]
-    bayes_prob = bayes_model.predict_proba(input_data)[0]
-    
-    print(f"Prueba: {cama} camas, {habi} habs, {depto}, {clase}")
-    print(f" KNN: {knn_pred}")
-    print(f" Bayes: {bayes_pred} (Prob: {bayes_prob})")
+def run_model_test(cama, habi, departamento, clase, provincia=None, distrito=None):
+    alta_model, estrellas_model, preprocesador, scaler_alta, scaler_est = load_models()
+    input_data = pd.DataFrame([
+        {
+            "CAMA": cama,
+            "HABI": habi,
+            "DEPARTAMENTO": departamento,
+            "PROVINCIA": provincia or departamento,
+            "DISTRITO": distrito or "NO_ESPECIFICADO",
+            "CLASE": clase,
+        }
+    ])
+
+    transformed = preprocesador.transform(input_data)
+    alta_pred = int(alta_model.predict(scaler_alta.transform(transformed))[0])
+    estrellas_pred = int(estrellas_model.predict(scaler_est.transform(transformed))[0])
+    alta_prob = alta_model.predict_proba(scaler_alta.transform(transformed))[0]
+
+    print(f"Prueba: {cama} camas, {habi} habs, {departamento}, {clase}")
+    print(f" Alta calidad: {alta_pred} (Prob: {alta_prob})")
+    print(f" Estrellas estimadas: {estrellas_pred}")
     print("-" * 30)
 
-test_model(1, 1, 'DEPARTAMENTO_LIMA', 'CLASE_Hostal')
-test_model(5, 5, 'DEPARTAMENTO_LIMA', 'CLASE_Hostal')
-test_model(10, 5, 'DEPARTAMENTO_LIMA', 'CLASE_Hostal')
-test_model(20, 10, 'DEPARTAMENTO_LIMA', 'CLASE_Albergue')
-test_model(50, 20, 'DEPARTAMENTO_LIMA', 'CLASE_Albergue')
-test_model(100, 50, 'DEPARTAMENTO_LIMA', 'CLASE_Hostal')
-test_model(500, 200, 'DEPARTAMENTO_LIMA', 'CLASE_Hotel')
-test_model(2, 1, 'DEPARTAMENTO_LIMA', 'CLASE_Hotel')
+if __name__ == "__main__":
+    run_model_test(1, 1, "LIMA", "HOSTAL", "LIMA", "MIRAFLORES")
+    run_model_test(5, 5, "LIMA", "HOSTAL", "LIMA", "MIRAFLORES")
+    run_model_test(10, 5, "LIMA", "HOSTAL", "LIMA", "MIRAFLORES")
+    run_model_test(20, 10, "LIMA", "ALBERGUE", "LIMA", "MIRAFLORES")
+    run_model_test(50, 20, "LIMA", "ALBERGUE", "LIMA", "MIRAFLORES")
+    run_model_test(100, 50, "LIMA", "HOSTAL", "LIMA", "MIRAFLORES")
+    run_model_test(500, 200, "LIMA", "HOTEL", "LIMA", "MIRAFLORES")
+    run_model_test(2, 1, "LIMA", "HOTEL", "LIMA", "MIRAFLORES")

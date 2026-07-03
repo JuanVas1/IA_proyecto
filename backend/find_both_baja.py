@@ -2,29 +2,38 @@ import joblib
 import pandas as pd
 import os
 
-MODELS_DIR = r"c:\Users\user\Documents\GitHub\IA_proyecto\backend\models"
-knn_model = joblib.load(os.path.join(MODELS_DIR, "modelo_knn.pkl"))
-bayes_model = joblib.load(os.path.join(MODELS_DIR, "modelo_bayes.pkl"))
-model_columns = joblib.load(os.path.join(MODELS_DIR, "columnas_modelo.pkl"))
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODELS_DIR = os.path.join(BASE_DIR, "models")
+
+alta_model = joblib.load(os.path.join(MODELS_DIR, "modelo_alta_calidad.pkl"))
+estrellas_model = joblib.load(os.path.join(MODELS_DIR, "modelo_estrellas.pkl"))
+preprocesador = joblib.load(os.path.join(MODELS_DIR, "preprocesador.pkl"))
+scaler_alta = joblib.load(os.path.join(MODELS_DIR, "scaler_alta.pkl"))
+scaler_est = joblib.load(os.path.join(MODELS_DIR, "scaler_est.pkl"))
 
 def find_perfect_baja():
-    valid_deptos = [col for col in model_columns if col.startswith('DEPARTAMENTO_') and not any(char.isdigit() for char in col)]
-    for depto in valid_deptos:
-        for clase in ['CLASE_Hotel', 'CLASE_Hostal', 'CLASE_Albergue', 'CLASE_Apart Hotel']:
+    for depto in ["LIMA", "CUSCO", "AREQUIPA", "PIURA"]:
+        for clase in ["HOTEL", "HOSTAL", "ALBERGUE", "APART HOTEL"]:
             for camas in [5, 10, 15, 20]:
                 for habs in [5, 10, 15, 20]:
-                    input_data = pd.DataFrame(columns=model_columns)
-                    input_data.loc[0] = 0
-                    input_data.at[0, "CAMA"] = camas
-                    input_data.at[0, "HABI"] = habs
-                    input_data.at[0, depto] = 1
-                    input_data.at[0, clase] = 1
-                    
-                    knn_pred = knn_model.predict(input_data)[0]
-                    bayes_pred = bayes_model.predict(input_data)[0]
-                    
-                    if knn_pred == 0 and bayes_pred == 0:
-                        print(f"¡BINGO! Depto: {depto.replace('DEPARTAMENTO_', '')}, Clase: {clase.replace('CLASE_', '')}, Camas: {camas}, Habs: {habs}")
+                    input_data = pd.DataFrame([
+                        {
+                            "CAMA": camas,
+                            "HABI": habs,
+                            "DEPARTAMENTO": depto,
+                            "PROVINCIA": depto,
+                            "DISTRITO": "NO_ESPECIFICADO",
+                            "CLASE": clase,
+                        }
+                    ])
+
+                    transformed = preprocesador.transform(input_data)
+                    alta_pred = int(alta_model.predict(scaler_alta.transform(transformed))[0])
+                    est_pred = int(estrellas_model.predict(scaler_est.transform(transformed))[0])
+
+                    if alta_pred == 0 and est_pred <= 2:
+                        print(f"¡BINGO! Depto: {depto}, Clase: {clase}, Camas: {camas}, Habs: {habs}, Estrellas: {est_pred}")
                         return
+    print("No se encontro una combinacion de baja calidad y pocas estrellas en el rango probado.")
 
 find_perfect_baja()

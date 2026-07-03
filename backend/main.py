@@ -1,12 +1,15 @@
-from fastapi import FastAPI, HTTPException
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from pymongo import MongoClient
-import joblib
-import pandas as pd
-import numpy as np
 import datetime
-import os
+from typing import Optional
+
+from services.dashboard_service import DashboardService
+from services.hotel_service import HotelService
+from services.prediction_service import PredictionService
 
 app = FastAPI()
 
@@ -28,16 +31,13 @@ try:
 except Exception as e:
     print(f"MongoDB connection error: {e}")
 
-# Load models and columns
-MODELS_DIR = os.path.join(os.path.dirname(__file__), "models")
-try:
-    knn_model = joblib.load(os.path.join(MODELS_DIR, "modelo_knn.pkl"))
-    bayes_model = joblib.load(os.path.join(MODELS_DIR, "modelo_bayes.pkl"))
-    model_columns = joblib.load(os.path.join(MODELS_DIR, "columnas_modelo.pkl"))
-    print("Models loaded successfully!")
-except Exception as e:
-    print(f"Error loading models: {e}")
-    model_columns = []
+BASE_DIR = Path(__file__).resolve().parent
+MODELS_DIR = BASE_DIR / "models"
+DATA_DIR = BASE_DIR / "data"
+
+prediction_service = PredictionService(MODELS_DIR)
+dashboard_service = DashboardService(DATA_DIR / "dashboard.csv")
+hotel_service = HotelService(DATA_DIR / "hospedajes_turista.csv")
 
 # Define input schema
 class PredictionRequest(BaseModel):
@@ -45,40 +45,35 @@ class PredictionRequest(BaseModel):
     habi: float
     departamento: str
     clase: str
+    provincia: Optional[str] = None
+    distrito: Optional[str] = None
+
+
+class TouristHotelRequest(BaseModel):
+    id: int
+    nombre_comercial: str
+    cama: float
+    habi: float
+    departamento: str
+    provincia: str
+    distrito: str
+    clase: str
+
+
+class TouristRecommendationsRequest(BaseModel):
+    hoteles: list[TouristHotelRequest]
 
 @app.post("/predict")
 async def predict(request: PredictionRequest):
     try:
-        # Create an empty dataframe with the exact columns the model expects
-        input_data = pd.DataFrame(columns=model_columns)
-        
-        # Add a single row initialized with zeros
-        input_data.loc[0] = 0
-        
-        # Set the numerical values
-        input_data.at[0, "CAMA"] = request.cama
-        input_data.at[0, "HABI"] = request.habi
-        
-        # Set the location one-hot encoding
-        if request.departamento in model_columns:
-            input_data.at[0, request.departamento] = 1
-            
-        # Set the clase one-hot encoding
-        if request.clase in model_columns:
-            input_data.at[0, request.clase] = 1
-        
-        # Predict using KNN
-        knn_prediction = int(knn_model.predict(input_data)[0])
-        
-        # Predict using Naive Bayes (get probability for Alta Calidad)
-        bayes_probs = bayes_model.predict_proba(input_data)[0]
-        bayes_prob_alta = round(float(bayes_probs[1]) * 100, 2)
-        bayes_prediction = int(bayes_model.predict(input_data)[0])
-        
-        # Format the result
-        quality_map = {0: "Estándar", 1: "Alta Calidad"}
-        knn_result_str = quality_map.get(knn_prediction, "Desconocido")
-        bayes_result_str = quality_map.get(bayes_prediction, "Desconocido")
+        result_payload = prediction_service.evaluate_hotel(
+            request.cama,
+            request.habi,
+            request.departamento,
+            request.provincia,
+            request.distrito,
+            request.clase,
+        )
         
         # Save to MongoDB
         record = {
@@ -87,15 +82,15 @@ async def predict(request: PredictionRequest):
                 "cama": request.cama,
                 "habi": request.habi,
                 "departamento": request.departamento,
-                "clase": request.clase
+                "provincia": request.provincia,
+                "distrito": request.distrito,
+                "clase": request.clase,
             },
             "predictions": {
-                "knn": knn_result_str,
-                "naive_bayes": bayes_result_str,
-                "naive_bayes_prob": bayes_prob_alta,
-                "knn_raw": knn_prediction,
-                "naive_bayes_raw": bayes_prediction
-            }
+                **result_payload,
+                "alta_calidad_raw": 1 if result_payload["calidad"] == "Alta Calidad" else 0,
+            },
+            "result": result_payload,
         }
         
         try:
@@ -107,23 +102,62 @@ async def predict(request: PredictionRequest):
             
         return {
             "success": True,
-            "predictions": {
-                "knn": knn_result_str,
-                "naive_bayes": bayes_result_str,
-                "naive_bayes_prob": bayes_prob_alta
-            },
+            "result": result_payload,
             "saved_to_db": saved
         }
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.post("/recommend-tourist")
+async def recommend_tourist(payload: TouristRecommendationsRequest):
+    try:
+        if not payload.hoteles:
+            return {"hoteles": []}
+
+        enriched_hotels = prediction_service.recommend_hotels([hotel.model_dump() for hotel in payload.hoteles])
+        return {"hoteles": enriched_hotels}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/hoteles")
+async def get_hoteles(
+    departamento: Optional[str] = None,
+    provincia: Optional[str] = None,
+    distrito: Optional[str] = None,
+    clase: Optional[str] = None,
+    estrellas: Optional[int] = None,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=25, ge=1, le=25),
+):
+    try:
+        return hotel_service.get_hoteles(
+            departamento=departamento,
+            provincia=provincia,
+            distrito=distrito,
+            clase=clase,
+            estrellas=estrellas,
+            page=page,
+            page_size=page_size,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/history")
 async def get_history():
     try:
-        # Get the last 10 predictions, sorted newest first
         cursor = collection.find({}, {"_id": 0}).sort("timestamp", -1).limit(10)
         history = list(cursor)
         return {"history": history}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/dashboard")
+async def get_dashboard():
+    try:
+        return dashboard_service.get_dashboard()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

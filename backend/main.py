@@ -37,7 +37,7 @@ DATA_DIR = BASE_DIR / "data"
 
 prediction_service = PredictionService(MODELS_DIR)
 dashboard_service = DashboardService(DATA_DIR / "dashboard.csv")
-hotel_service = HotelService(DATA_DIR / "hospedajes_turista.csv")
+hotel_service = HotelService(DATA_DIR / "dashboard.csv")
 
 # Define input schema
 class PredictionRequest(BaseModel):
@@ -186,5 +186,13 @@ async def get_history():
 async def get_dashboard(departamento: Optional[str] = Query(default=None)):
     try:
         return dashboard_service.get_dashboard(departamento=departamento)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/ubicaciones")
+async def get_ubicaciones():
+    try:
+        return dashboard_service.get_location_catalog()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

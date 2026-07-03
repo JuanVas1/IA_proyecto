@@ -17,9 +17,68 @@ class HotelService:
     def __post_init__(self) -> None:
         self.df = pd.read_csv(self.data_path)
         self.df.columns = [col.strip().lower() for col in self.df.columns]
+
+        # Normalize column names from different data sources (small sample vs full dashboard).
+        aliases = {
+            "e_mail": "email",
+            "pagina_web": "web",
+            "direccion_completa": "ubicacion",
+        }
+        for source, target in aliases.items():
+            if source in self.df.columns and target not in self.df.columns:
+                self.df[target] = self.df[source]
+
+        if "nombre_comercial" not in self.df.columns:
+            self.df["nombre_comercial"] = self.df.get("razon_social", "")
+        if "telefono" not in self.df.columns:
+            self.df["telefono"] = ""
+        if "email" not in self.df.columns:
+            self.df["email"] = ""
+        if "web" not in self.df.columns:
+            self.df["web"] = ""
+        if "ubicacion" not in self.df.columns:
+            self.df["ubicacion"] = ""
+        if "categoria" not in self.df.columns:
+            self.df["categoria"] = ""
+        if "id" not in self.df.columns:
+            self.df["id"] = range(1, len(self.df) + 1)
+
+        for col in [
+            "nombre_comercial",
+            "departamento",
+            "provincia",
+            "distrito",
+            "clase",
+            "categoria",
+            "telefono",
+            "email",
+            "web",
+            "ubicacion",
+        ]:
+            if col in self.df.columns:
+                self.df[col] = self.df[col].fillna("").astype(str).str.strip()
+
         for col in ["estrellas", "cama", "habi"]:
             if col in self.df.columns:
                 self.df[col] = pd.to_numeric(self.df[col], errors="coerce")
+
+        # Remove repeated hotels that come from multiple snapshots/rows.
+        dedup_keys = [
+            "nombre_comercial",
+            "departamento",
+            "provincia",
+            "distrito",
+            "clase",
+            "cama",
+            "habi",
+            "estrellas",
+        ]
+        existing_dedup_keys = [col for col in dedup_keys if col in self.df.columns]
+        if existing_dedup_keys:
+            self.df = self.df.drop_duplicates(subset=existing_dedup_keys, keep="first").reset_index(drop=True)
+
+        # Keep IDs stable and unique after deduplication.
+        self.df["id"] = range(1, len(self.df) + 1)
 
         # Proxy target used for tourist confidence ranking when explicit quality labels are absent.
         self.df["alta_calidad_proxy"] = (self.df["estrellas"].fillna(0) >= 4).astype(int)

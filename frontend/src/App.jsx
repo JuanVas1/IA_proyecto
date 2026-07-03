@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { getDashboard, getHistory, getHotels, getSimilarHotels, predictHotel, recommendTourist } from "./services/api";
+import { getDashboard, getHistory, getHotels, getLocationsCatalog, getSimilarHotels, predictHotel, recommendTourist } from "./services/api";
 import fallbackHotel from "./assets/fallbacks/hotel.svg";
 import fallbackHostal from "./assets/fallbacks/hostal.svg";
 import fallbackResort from "./assets/fallbacks/resort.svg";
@@ -215,11 +215,17 @@ function adaptHistoryRecord(item) {
   };
 }
 
-function buildInvestorErrors(form) {
+function buildInvestorErrors(
+  form,
+  {
+    requireProvincia = true,
+    requireDistrito = true,
+  } = {}
+) {
   const errors = {};
   if (!form.departamento) errors.departamento = "Selecciona un departamento.";
-  if (!form.provincia) errors.provincia = "Selecciona una provincia.";
-  if (!form.distrito) errors.distrito = "Selecciona un distrito.";
+  if (requireProvincia && !form.provincia) errors.provincia = "Selecciona una provincia.";
+  if (requireDistrito && !form.distrito) errors.distrito = "Selecciona un distrito.";
   if (!form.clase) errors.clase = "Selecciona una clase.";
 
   const cama = Number(form.cama);
@@ -321,6 +327,85 @@ function sortByQualityThenConfidence(hotels) {
   });
 }
 
+function hotelUniqueKey(hotel = {}) {
+  const id = String(hotel?.id || "").trim();
+  const name = String(hotel?.nombre_comercial || hotel?.nombre || "").trim().toUpperCase();
+  const dep = String(hotel?.departamento || "").trim().toUpperCase();
+  const prov = String(hotel?.provincia || "").trim().toUpperCase();
+  const dist = String(hotel?.distrito || "").trim().toUpperCase();
+  const clase = String(hotel?.clase || "").trim().toUpperCase();
+
+  if (id) return `id:${id}`;
+  return `n:${name}|d:${dep}|p:${prov}|di:${dist}|c:${clase}`;
+}
+
+const TOURIST_CLASS_PRIORITY = {
+  HOTEL: 0,
+  "APART HOTEL": 1,
+  HOSTAL: 2,
+  ALBERGUE: 3,
+};
+
+function normalizeTouristClass(value = "") {
+  return String(value || "").trim().toUpperCase();
+}
+
+function extractCategoryValue(hotel) {
+  const fromLabel = String(hotel?.categoria || "").match(/(\d+)/);
+  if (fromLabel) {
+    return Math.max(1, Math.min(5, Number(fromLabel[1]) || 1));
+  }
+  return Math.max(1, Math.min(5, Number(hotel?.estrellas_ia || hotel?.estrellas || 1) || 1));
+}
+
+function sortTouristByCategoryAndClass(hotels) {
+  return [...hotels].sort((left, right) => {
+    const categoryDiff = extractCategoryValue(right) - extractCategoryValue(left);
+    if (categoryDiff !== 0) return categoryDiff;
+
+    const leftClass = normalizeTouristClass(left?.clase);
+    const rightClass = normalizeTouristClass(right?.clase);
+    const leftPriority = TOURIST_CLASS_PRIORITY[leftClass] ?? 99;
+    const rightPriority = TOURIST_CLASS_PRIORITY[rightClass] ?? 99;
+    if (leftPriority !== rightPriority) return leftPriority - rightPriority;
+
+    return Number(right?.prob_alta_calidad_bayes || 0) - Number(left?.prob_alta_calidad_bayes || 0);
+  });
+}
+
+function buildTouristCombinedList(primaryHotels, fallbackHotels, minItems = 10) {
+  const preferredClasses = new Set(Object.keys(TOURIST_CLASS_PRIORITY));
+  const selected = [];
+  const seen = new Set();
+
+  const addHotels = (hotels) => {
+    for (const hotel of hotels) {
+      const key = hotelUniqueKey(hotel);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      selected.push(hotel);
+    }
+  };
+
+  const preferredPrimary = primaryHotels.filter((hotel) => preferredClasses.has(normalizeTouristClass(hotel?.clase)));
+  addHotels(sortTouristByCategoryAndClass(preferredPrimary));
+
+  if (selected.length < minItems) {
+    const preferredFallback = fallbackHotels.filter((hotel) => preferredClasses.has(normalizeTouristClass(hotel?.clase)));
+    addHotels(sortTouristByCategoryAndClass(preferredFallback));
+  }
+
+  if (selected.length < minItems) {
+    addHotels(sortTouristByCategoryAndClass(primaryHotels));
+  }
+
+  if (selected.length < minItems) {
+    addHotels(sortTouristByCategoryAndClass(fallbackHotels));
+  }
+
+  return sortTouristByCategoryAndClass(selected);
+}
+
 function touristStarsByIA(hotel) {
   if (hotel.estrellas_visual) return hotel.estrellas_visual;
   if (hotel.recomendado_ia !== undefined) return hotel.recomendado_ia ? "★★★★★" : "★★★☆☆";
@@ -369,6 +454,7 @@ function App() {
   const [touristLoading, setTouristLoading] = useState(false);
   const [touristRequestError, setTouristRequestError] = useState(null);
   const [catalog, setCatalog] = useState({ departamentos: [], clases: [], estrellas: [], location_tree: {} });
+  const [locationCatalog, setLocationCatalog] = useState({ departamentos: [], location_tree: {} });
   const [touristTotalPages, setTouristTotalPages] = useState(1);
   const [touristTotalItems, setTouristTotalItems] = useState(0);
   const [touristPage, setTouristPage] = useState(1);
@@ -400,9 +486,22 @@ function App() {
     }
   };
 
+  const fetchLocationCatalog = async () => {
+    try {
+      const data = await getLocationsCatalog();
+      setLocationCatalog({
+        departamentos: data?.departamentos || [],
+        location_tree: data?.location_tree || {},
+      });
+    } catch (error) {
+      setLocationCatalog({ departamentos: [], location_tree: {} });
+    }
+  };
+
   useEffect(() => {
     fetchHistory();
     fetchDashboard("TODOS");
+    fetchLocationCatalog();
   }, []);
 
   const fetchTouristHotels = async (filters, page) => {
@@ -466,33 +565,67 @@ function App() {
     if (!investorForm.departamento) {
       return [];
     }
-    return Object.keys(catalog.location_tree?.[investorForm.departamento] || {});
-  }, [catalog.location_tree, investorForm.departamento]);
+    return Object.keys(locationCatalog.location_tree?.[investorForm.departamento] || {});
+  }, [locationCatalog.location_tree, investorForm.departamento]);
 
   const districtOptions = useMemo(() => {
     if (!investorForm.departamento || !investorForm.provincia) {
       return [];
     }
-    return catalog.location_tree?.[investorForm.departamento]?.[investorForm.provincia] || [];
-  }, [catalog.location_tree, investorForm.departamento, investorForm.provincia]);
+    return locationCatalog.location_tree?.[investorForm.departamento]?.[investorForm.provincia] || [];
+  }, [locationCatalog.location_tree, investorForm.departamento, investorForm.provincia]);
+
+  const peruDepartmentOptions = useMemo(() => {
+    const features = peruDepartmentsGeo?.features || [];
+    const byKey = new Map();
+
+    for (const feature of features) {
+      const name = String(getFeatureDepartmentName(feature) || "").trim();
+      if (!name) continue;
+      const key = normalizeDepartmentKey(name);
+      if (!byKey.has(key)) {
+        byKey.set(key, name);
+      }
+    }
+
+    return [...byKey.values()].sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
+  }, []);
+
+  const allDepartmentOptions = useMemo(() => {
+    const byKey = new Map();
+
+    for (const dep of [...peruDepartmentOptions, ...(locationCatalog.departamentos || []), ...(catalog.departamentos || [])]) {
+      const value = String(dep || "").trim();
+      if (!value) continue;
+      const key = normalizeDepartmentKey(value);
+      if (!byKey.has(key)) {
+        byKey.set(key, value);
+      }
+    }
+
+    return [...byKey.values()].sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
+  }, [catalog.departamentos, locationCatalog.departamentos, peruDepartmentOptions]);
 
   const filteredTuristaData = useMemo(() => {
     return touristAHotels.length > 0 ? touristAHotels : touristHotels;
   }, [touristAHotels, touristHotels]);
 
-  const touristOptions = useMemo(() => ({ departamentos: catalog.departamentos || [] }), [catalog.departamentos]);
+  const touristOptions = useMemo(() => ({ departamentos: allDepartmentOptions }), [allDepartmentOptions]);
 
   const touristVisibleHotels = useMemo(() => {
-    if (touristAHotels.length > 0) {
-      return touristAppliedPrioritizeIA ? sortByQualityThenConfidence(filteredTuristaData) : mixHotelsForBrowse(filteredTuristaData);
+    const touristPool = touristAHotels.length > 0
+      ? (touristAppliedPrioritizeIA ? sortByQualityThenConfidence(filteredTuristaData) : filteredTuristaData)
+      : filteredTuristaData;
+
+    const baseList = buildTouristCombinedList(touristPool, [], 10);
+    const shouldExcludeFeaturedFromMain = touristAppliedPrioritizeIA && touristFeaturedHotels.length > 0;
+    if (!shouldExcludeFeaturedFromMain) {
+      return baseList;
     }
-    if (!touristAppliedPrioritizeIA) return mixHotelsForBrowse(filteredTuristaData);
-    return [...filteredTuristaData].sort((a, b) => {
-      const bayesDiff = Number(b.prob_alta_calidad_bayes || 0) - Number(a.prob_alta_calidad_bayes || 0);
-      if (bayesDiff !== 0) return bayesDiff;
-      return Number(b.estrellas || 0) - Number(a.estrellas || 0);
-    });
-  }, [filteredTuristaData, touristAHotels, touristAppliedPrioritizeIA]);
+
+    const featuredKeys = new Set((touristFeaturedHotels || []).map((hotel) => hotelUniqueKey(hotel)));
+    return baseList.filter((hotel) => !featuredKeys.has(hotelUniqueKey(hotel)));
+  }, [filteredTuristaData, touristAHotels, touristAppliedPrioritizeIA, touristFeaturedHotels]);
 
   const visibleModuleCards = useMemo(
     () => SYSTEM_MODULES.filter((module) => module.id !== "turista"),
@@ -589,7 +722,10 @@ function App() {
 
   const submitPrediction = async (event) => {
     event.preventDefault();
-    const nextErrors = buildInvestorErrors(investorForm);
+    const nextErrors = buildInvestorErrors(investorForm, {
+      requireProvincia: true,
+      requireDistrito: true,
+    });
     setFieldErrors(nextErrors);
     setFormError(null);
     setPredictError(null);
@@ -900,7 +1036,7 @@ function App() {
             Departamento
             <select name="departamento" value={investorForm.departamento} onChange={onInvestorChange}>
               <option value="">Selecciona un departamento</option>
-              {(catalog.departamentos || []).map((dep) => (
+              {allDepartmentOptions.map((dep) => (
                 <option key={dep} value={dep}>{cleanLabel(dep)}</option>
               ))}
             </select>
@@ -913,7 +1049,7 @@ function App() {
               name="provincia"
               value={investorForm.provincia}
               onChange={onInvestorChange}
-              disabled={!investorForm.departamento}
+              disabled={!investorForm.departamento || provinceOptions.length === 0}
             >
               <option value="">Selecciona una provincia</option>
               {provinceOptions.map((prov) => (
@@ -929,7 +1065,7 @@ function App() {
               name="distrito"
               value={investorForm.distrito}
               onChange={onInvestorChange}
-              disabled={!investorForm.provincia}
+              disabled={!investorForm.provincia || districtOptions.length === 0}
             >
               <option value="">Selecciona un distrito</option>
               {districtOptions.map((dist) => (

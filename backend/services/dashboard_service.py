@@ -64,6 +64,69 @@ class DashboardService:
 
         return payload
 
+    def get_location_catalog(self) -> dict:
+        if self.df.empty:
+            return {"departamentos": [], "location_tree": {}}
+
+        frame = self.df[["DEPARTAMENTO", "PROVINCIA", "DISTRITO"]].copy()
+        for column in ["DEPARTAMENTO", "PROVINCIA", "DISTRITO"]:
+            frame[column] = frame[column].fillna("").astype(str).str.strip()
+
+        department_names: dict[str, str] = {}
+        province_names: dict[tuple[str, str], str] = {}
+        district_names: dict[tuple[str, str, str], str] = {}
+        location_tree_by_key: dict[str, dict[str, set[str]]] = {}
+
+        for _, row in frame.iterrows():
+            dep = row["DEPARTAMENTO"]
+            if not dep:
+                continue
+
+            dep_key = self._normalize_text(dep)
+            if dep_key not in department_names:
+                department_names[dep_key] = dep
+            location_tree_by_key.setdefault(dep_key, {})
+
+            prov = row["PROVINCIA"]
+            if not prov:
+                continue
+
+            prov_key = self._normalize_text(prov)
+            province_label_key = (dep_key, prov_key)
+            if province_label_key not in province_names:
+                province_names[province_label_key] = prov
+            location_tree_by_key[dep_key].setdefault(prov_key, set())
+
+            dist = row["DISTRITO"]
+            if not dist:
+                continue
+
+            dist_key = self._normalize_text(dist)
+            district_label_key = (dep_key, prov_key, dist_key)
+            if district_label_key not in district_names:
+                district_names[district_label_key] = dist
+            location_tree_by_key[dep_key][prov_key].add(dist_key)
+
+        sorted_dep_keys = sorted(location_tree_by_key.keys())
+        location_tree: dict[str, dict[str, list[str]]] = {}
+
+        for dep_key in sorted_dep_keys:
+            dep_name = department_names.get(dep_key, dep_key)
+            location_tree[dep_name] = {}
+            for prov_key in sorted(location_tree_by_key[dep_key].keys()):
+                prov_name = province_names.get((dep_key, prov_key), prov_key)
+                district_values = [
+                    district_names.get((dep_key, prov_key, dist_key), dist_key)
+                    for dist_key in sorted(location_tree_by_key[dep_key][prov_key])
+                ]
+                location_tree[dep_name][prov_name] = district_values
+
+        departamentos = sorted(location_tree.keys(), key=self._normalize_text)
+        return {
+            "departamentos": departamentos,
+            "location_tree": location_tree,
+        }
+
     def get_dashboard(self, departamento: str | None = None) -> dict:
         requested_department = str(departamento or "").strip()
         requested_key = self._normalize_text(requested_department)

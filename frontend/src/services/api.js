@@ -30,6 +30,11 @@ export async function getDashboard(departamento) {
   return response.data;
 }
 
+export async function getLocationsCatalog() {
+  const response = await axios.get(`${API_BASE}/ubicaciones`);
+  return response.data;
+}
+
 export async function getHotels(params = {}) {
   const response = await axios.get(`${API_BASE}/hoteles`, { params });
   return response.data;
